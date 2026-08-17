@@ -148,9 +148,15 @@ create policy admin_write_rounds  on rounds   for all to authenticated
 create policy admin_write_matches on matches  for all to authenticated
   using (is_event_admin(event_id)) with check (is_event_admin(event_id));
 
--- Captains assign players to their own team (team_id updates handled app-side via this policy).
+-- Organizers assign players to any team in their event; captains only to the team they captain.
+-- (Un-assigning/removing a player goes through the guarded undo_pick/remove_player RPCs below,
+-- not this policy, so a captain can't null out team_id directly and skip the matchup check.)
 create policy captain_assign_team on profiles for update to authenticated
-  using (is_event_admin(event_id)) with check (is_event_admin(event_id));
+  using (is_event_admin(event_id))
+  with check (
+    is_organizer(event_id)
+    or team_id in (select id from teams where captain_id = auth.uid())
+  );
 
 -- Score entry: any player listed on the match may write that match's scores; captains/organizer too.
 create policy write_scores on hole_scores for all to authenticated
@@ -188,5 +194,52 @@ begin
     set event_id = excluded.event_id, role = 'organizer', display_name = excluded.display_name;
 
   return v_event;
+end;
+$$;
+
+-- Raise if a player is already referenced by a matchup, so undoing/removing them can't
+-- silently desync matches.side_a_players / side_b_players.
+create or replace function assert_player_not_matched(p_player_id uuid, p_event uuid)
+returns void language plpgsql stable as $$
+begin
+  if exists (
+    select 1 from matches m
+    where m.event_id = p_event
+      and (p_player_id = any(m.side_a_players) or p_player_id = any(m.side_b_players))
+  ) then
+    raise exception 'Player is already in a matchup — remove them from matchups first';
+  end if;
+end;
+$$;
+
+-- Undo a draft pick: send a drafted player back to the pool.
+create or replace function undo_pick(p_player_id uuid)
+returns void language plpgsql security definer as $$
+declare v_event uuid;
+begin
+  select event_id into v_event from profiles where id = p_player_id;
+  if v_event is null then raise exception 'Player not found'; end if;
+  if not is_event_admin(v_event) then raise exception 'Not authorized'; end if;
+
+  perform assert_player_not_matched(p_player_id, v_event);
+
+  update profiles set team_id = null where id = p_player_id;
+end;
+$$;
+
+-- Remove a player from the event entirely (mis-signup, duplicate join, etc).
+-- Leaves their auth.users account intact; they can rejoin later with the join code.
+create or replace function remove_player(p_player_id uuid)
+returns void language plpgsql security definer as $$
+declare v_event uuid;
+begin
+  select event_id into v_event from profiles where id = p_player_id;
+  if v_event is null then raise exception 'Player not found'; end if;
+  if not is_event_admin(v_event) then raise exception 'Not authorized'; end if;
+
+  perform assert_player_not_matched(p_player_id, v_event);
+
+  update teams set captain_id = null where captain_id = p_player_id;
+  delete from profiles where id = p_player_id;
 end;
 $$;

@@ -70,6 +70,13 @@ export default function AdminSetup() {
     await supabase.from('rounds').insert(ROUND_TEMPLATE.map(t => ({ ...t, event_id: event.id, course_id: course.id })));
     load();
   }
+  async function removePlayer(p) {
+    if (!window.confirm(`Remove ${p.display_name} from the event? They can rejoin later with the join code.`)) return;
+    const { error } = await supabase.rpc('remove_player', { p_player_id: p.id });
+    if (error) { flash(error.message); return; }
+    flash('Player removed');
+    load();
+  }
 
   const setHole = (i, key, val) => setCourse(c => {
     const holes = c.holes.map((h, idx) => idx === i ? { ...h, [key]: Number(val) } : h);
@@ -127,6 +134,20 @@ export default function AdminSetup() {
               <button onClick={() => saveTeam(t)}>Save</button>
             </div>
           ))}
+      </section>
+
+      <section className="card">
+        <h3>Players</h3>
+        {players.length === 0
+          ? <p className="muted">No one has joined yet.</p>
+          : <ul className="clean">
+              {players.map(p => (
+                <li key={p.id} className="row between">
+                  <span>{p.display_name} <span className="dim">({p.handicap}) · {p.role}</span></span>
+                  <button onClick={() => removePlayer(p)}>✕ Remove</button>
+                </li>
+              ))}
+            </ul>}
       </section>
 
       <section className="card">

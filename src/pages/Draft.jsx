@@ -7,14 +7,18 @@ export default function Draft() {
   const { profile } = useAuth();
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [err, setErr] = useState('');
+  const [busyId, setBusyId] = useState(null);
 
   async function load() {
     const evt = profile.event_id;
-    const [{ data: t }, { data: p }] = await Promise.all([
+    const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
       supabase.from('teams').select('*').eq('event_id', evt).order('name'),
-      supabase.from('profiles').select('*').eq('event_id', evt).order('display_name')
+      supabase.from('profiles').select('*').eq('event_id', evt).order('display_name'),
+      supabase.from('matches').select('id, side_a_players, side_b_players').eq('event_id', evt)
     ]);
-    setTeams(t || []); setPlayers(p || []);
+    setTeams(t || []); setPlayers(p || []); setMatches(m || []);
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
 
@@ -24,14 +28,38 @@ export default function Draft() {
   const nextSide = order[picksMade % order.length];
   const nextTeam = teams[nextSide === 'A' ? 0 : 1];
 
-  async function assign(playerId, teamId) {
-    await supabase.from('profiles').update({ team_id: teamId }).eq('id', playerId);
-    load();
+  const isOrganizer = profile.role === 'organizer';
+  const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
+  const canPickFor = teamId => isOrganizer || teamId === myTeamId;
+  const inMatchup = playerId => matches.some(m =>
+    m.side_a_players.includes(playerId) || m.side_b_players.includes(playerId));
+
+  async function run(playerId, fn) {
+    setErr(''); setBusyId(playerId);
+    try {
+      const { error } = await fn();
+      if (error) throw error;
+      await load();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setBusyId(null);
+    }
   }
+
+  const assign = (playerId, teamId) =>
+    run(playerId, () => supabase.from('profiles').update({ team_id: teamId }).eq('id', playerId));
+  const undoPick = playerId =>
+    run(playerId, () => supabase.rpc('undo_pick', { p_player_id: playerId }));
+  const removePlayer = playerId => {
+    if (!window.confirm('Remove this player from the event? They can rejoin later with the join code.')) return;
+    run(playerId, () => supabase.rpc('remove_player', { p_player_id: playerId }));
+  };
 
   return (
     <div className="stack">
       <h1>Team draft</h1>
+      {err && <p className="err">{err}</p>}
       {teams.length < 2 ? <p className="muted">Create two teams in Setup first.</p> : (
         <>
           <p className="muted">Next pick (snake order): <strong>{nextTeam?.name || '—'}</strong></p>
@@ -40,8 +68,17 @@ export default function Draft() {
               <div className="card" key={t.id}>
                 <h3><span className="dot" style={{ background: t.color }} /> {t.name}</h3>
                 <ul className="clean">
-                  {players.filter(p => p.team_id === t.id).map(p =>
-                    <li key={p.id}>{p.display_name} <span className="dim">({p.handicap})</span></li>)}
+                  {players.filter(p => p.team_id === t.id).map(p => (
+                    <li key={p.id} className="row between">
+                      <span>{p.display_name} <span className="dim">({p.handicap})</span>
+                        {inMatchup(p.id) && <span className="dim"> · in matchups</span>}
+                      </span>
+                      <span className="row">
+                        <button disabled={busyId === p.id || inMatchup(p.id)} onClick={() => undoPick(p.id)}>↩ Undo</button>
+                        <button disabled={busyId === p.id || inMatchup(p.id)} onClick={() => removePlayer(p.id)}>✕ Remove</button>
+                      </span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             ))}
@@ -52,8 +89,9 @@ export default function Draft() {
               <div className="poolrow" key={p.id}>
                 <span>{p.display_name} <span className="dim">({p.handicap})</span></span>
                 <span className="row">
-                  {teams.map(t =>
-                    <button key={t.id} onClick={() => assign(p.id, t.id)}>→ {t.name}</button>)}
+                  {teams.filter(t => canPickFor(t.id)).map(t =>
+                    <button key={t.id} disabled={busyId === p.id} onClick={() => assign(p.id, t.id)}>→ {t.name}</button>)}
+                  <button disabled={busyId === p.id} onClick={() => removePlayer(p.id)}>✕ Remove</button>
                 </span>
               </div>
             ))}
