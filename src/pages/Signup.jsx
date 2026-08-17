@@ -49,6 +49,7 @@ export default function Signup() {
       {err && <p className="err">{err}</p>}
       <button className="primary" disabled={busy} onClick={submit}>{busy ? 'Joining…' : 'Join'}</button>
       <p className="muted">Already joined? <Link to="/login">Sign in</Link></p>
+      <p className="muted">Organizing? <Link to="/start">Start a new event</Link></p>
     </div>
   );
 }

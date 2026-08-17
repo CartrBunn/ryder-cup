@@ -7,6 +7,7 @@ import AdminSetup from './pages/AdminSetup';
 import Draft from './pages/Draft';
 import Matchups from './pages/Matchups';
 import ScoreEntry from './pages/ScoreEntry';
+import StartEvent from './pages/StartEvent';
 
 function Nav() {
   const { session, profile } = useAuth();
@@ -44,6 +45,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/start" element={<StartEvent />} />
           <Route path="/" element={<Protected><Lobby /></Protected>} />
           <Route path="/match/:id" element={<Protected><ScoreEntry /></Protected>} />
           <Route path="/draft" element={<Protected need={['organizer','captain']}><Draft /></Protected>} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -33,7 +34,7 @@ export default function AdminSetup() {
   }
   useEffect(() => { load(); }, [profile?.event_id]);
 
-  if (!profile?.event_id) return <StartEvent onDone={refreshProfile} />;
+  if (!profile?.event_id) return <Navigate to="/start" replace />;
   if (!event) return <div className="center">Loading setup…</div>;
 
   const flash = m => { setMsg(m); setTimeout(() => setMsg(''), 1500); };
@@ -138,37 +139,3 @@ export default function AdminSetup() {
   );
 }
 
-function StartEvent({ onDone }) {
-  const [f, setF] = useState({ email: '', password: '', name: '', event: 'Company Ryder Cup', code: '' });
-  const [err, setErr] = useState('');
-  const set = k => e => setF({ ...f, [k]: e.target.value });
-  async function go() {
-    setErr('');
-    try {
-      let { error } = await supabase.auth.signUp({ email: f.email, password: f.password });
-      if (error && !/already registered/i.test(error.message)) throw error;
-      if (error) {
-        const s = await supabase.auth.signInWithPassword({ email: f.email, password: f.password });
-        if (s.error) throw s.error;
-      }
-      const { error: rpcErr } = await supabase.rpc('create_event',
-        { p_name: f.event, p_join_code: f.code.trim(), p_organizer_name: f.name.trim() });
-      if (rpcErr) throw rpcErr;
-      await onDone();
-    } catch (e) { setErr(e.message || String(e)); }
-  }
-  return (
-    <div className="card narrow">
-      <h1>Start an event</h1>
-      <p className="muted">You'll be the organizer. Share the join code with players.</p>
-      <input placeholder="Event name" value={f.event} onChange={set('event')} />
-      <input placeholder="Join code to hand out" value={f.code} onChange={set('code')} />
-      <input placeholder="Your name" value={f.name} onChange={set('name')} />
-      <hr />
-      <input placeholder="Email" value={f.email} onChange={set('email')} />
-      <input type="password" placeholder="Password" value={f.password} onChange={set('password')} />
-      {err && <p className="err">{err}</p>}
-      <button className="primary" onClick={go}>Create event</button>
-    </div>
-  );
-}

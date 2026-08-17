@@ -23,6 +23,7 @@ export default function Login() {
       {err && <p className="err">{err}</p>}
       <button className="primary" onClick={submit}>Sign in</button>
       <p className="muted">New here? <Link to="/signup">Join the event</Link></p>
+      <p className="muted">Organizing? <Link to="/start">Start a new event</Link></p>
     </div>
   );
 }
