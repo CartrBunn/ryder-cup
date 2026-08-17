@@ -1,0 +1,192 @@
+-- Ryder Cup — Supabase schema
+-- Run this in the Supabase SQL editor (or via the CLI) on a fresh project.
+-- RLS policies here are a sensible baseline; review them before a public event.
+
+-- ---------- tables ----------
+
+create table if not exists events (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  join_code text not null,
+  singles_pct int not null default 100,
+  altshot_pct int not null default 50,
+  scramble_low_pct int not null default 35,
+  scramble_high_pct int not null default 15,
+  locked boolean not null default false,        -- true once teams/matchups are set
+  created_by uuid references auth.users(id),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists courses (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  name text not null,
+  holes jsonb not null                          -- [{ "number":1, "par":4, "strokeIndex":7 }, ...]
+);
+
+create table if not exists teams (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  name text not null,
+  color text not null default '#1E3A5F',
+  captain_id uuid                                -- profiles.id of the captain
+);
+
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  event_id uuid references events(id) on delete cascade,
+  display_name text not null,
+  handicap numeric not null default 0,
+  role text not null default 'player',           -- 'organizer' | 'captain' | 'player'
+  team_id uuid references teams(id),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists rounds (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  seq int not null,                              -- 1,2,3
+  name text not null,                            -- 'Scramble', 'Alternate Shot', 'Singles'
+  format text not null,                          -- 'scramble' | 'alternate_shot' | 'singles'
+  course_id uuid references courses(id)
+);
+
+create table if not exists matches (
+  id uuid primary key default gen_random_uuid(),
+  round_id uuid not null references rounds(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  seq int not null,
+  side_a_players uuid[] not null default '{}',   -- profiles.id[]  (1 for singles, 2 for team formats)
+  side_b_players uuid[] not null default '{}',
+  status_text text,                              -- e.g. "A 2 up thru 7"  (denormalized for quick reads)
+  final text,                                    -- 'A' | 'B' | 'half' | null
+  submitted boolean not null default false
+);
+
+create table if not exists hole_scores (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references matches(id) on delete cascade,
+  side text not null check (side in ('A','B')),
+  hole int not null,
+  gross int not null,
+  entered_by uuid references profiles(id),
+  updated_at timestamptz not null default now(),
+  unique (match_id, side, hole)
+);
+
+-- ---------- helpers ----------
+
+-- Is the current user an organizer of this event?
+create or replace function is_organizer(evt uuid)
+returns boolean language sql stable security definer as $$
+  select exists (
+    select 1 from profiles p
+    where p.id = auth.uid() and p.event_id = evt and p.role = 'organizer'
+  );
+$$;
+
+-- Is the current user an organizer OR a captain of this event?
+create or replace function is_event_admin(evt uuid)
+returns boolean language sql stable security definer as $$
+  select exists (
+    select 1 from profiles p
+    where p.id = auth.uid() and p.event_id = evt and p.role in ('organizer','captain')
+  );
+$$;
+
+-- Join an event: validates the code, creates/updates the caller's profile.
+create or replace function redeem_join_code(p_code text, p_name text, p_handicap numeric)
+returns uuid language plpgsql security definer as $$
+declare v_event uuid;
+begin
+  select id into v_event from events where join_code = p_code limit 1;
+  if v_event is null then raise exception 'Invalid join code'; end if;
+
+  insert into profiles (id, event_id, display_name, handicap, role)
+  values (auth.uid(), v_event, p_name, p_handicap, 'player')
+  on conflict (id) do update
+    set display_name = excluded.display_name,
+        handicap = excluded.handicap,
+        event_id = excluded.event_id;
+
+  return v_event;
+end;
+$$;
+
+-- ---------- row level security ----------
+
+alter table events       enable row level security;
+alter table courses      enable row level security;
+alter table teams        enable row level security;
+alter table profiles     enable row level security;
+alter table rounds       enable row level security;
+alter table matches      enable row level security;
+alter table hole_scores  enable row level security;
+
+-- Everyone signed in can read the event data (leaderboard, draft pool, matchups).
+create policy read_events   on events      for select to authenticated using (true);
+create policy read_courses  on courses     for select to authenticated using (true);
+create policy read_teams    on teams       for select to authenticated using (true);
+create policy read_profiles on profiles    for select to authenticated using (true);
+create policy read_rounds   on rounds      for select to authenticated using (true);
+create policy read_matches  on matches     for select to authenticated using (true);
+create policy read_scores   on hole_scores for select to authenticated using (true);
+
+-- Players manage their own profile basics; nobody escalates their own role via the table.
+create policy update_own_profile on profiles for update to authenticated
+  using (id = auth.uid());
+
+-- Organizer/captain manage structure.
+create policy admin_write_events  on events   for all to authenticated
+  using (is_organizer(id)) with check (is_organizer(id));
+create policy admin_write_courses on courses  for all to authenticated
+  using (is_organizer(event_id)) with check (is_organizer(event_id));
+create policy admin_write_teams   on teams    for all to authenticated
+  using (is_event_admin(event_id)) with check (is_event_admin(event_id));
+create policy admin_write_rounds  on rounds   for all to authenticated
+  using (is_event_admin(event_id)) with check (is_event_admin(event_id));
+create policy admin_write_matches on matches  for all to authenticated
+  using (is_event_admin(event_id)) with check (is_event_admin(event_id));
+
+-- Captains assign players to their own team (team_id updates handled app-side via this policy).
+create policy captain_assign_team on profiles for update to authenticated
+  using (is_event_admin(event_id)) with check (is_event_admin(event_id));
+
+-- Score entry: any player listed on the match may write that match's scores; captains/organizer too.
+create policy write_scores on hole_scores for all to authenticated
+  using (
+    exists (
+      select 1 from matches m
+      where m.id = hole_scores.match_id
+        and ( is_event_admin(m.event_id)
+              or auth.uid() = any(m.side_a_players)
+              or auth.uid() = any(m.side_b_players) )
+    )
+  )
+  with check (
+    exists (
+      select 1 from matches m
+      where m.id = hole_scores.match_id
+        and ( is_event_admin(m.event_id)
+              or auth.uid() = any(m.side_a_players)
+              or auth.uid() = any(m.side_b_players) )
+    )
+  );
+
+-- Bootstrap: create an event and make the caller its organizer (no join code needed).
+create or replace function create_event(p_name text, p_join_code text, p_organizer_name text)
+returns uuid language plpgsql security definer as $$
+declare v_event uuid;
+begin
+  insert into events (name, join_code, created_by)
+  values (p_name, p_join_code, auth.uid())
+  returning id into v_event;
+
+  insert into profiles (id, event_id, display_name, handicap, role)
+  values (auth.uid(), v_event, p_organizer_name, 0, 'organizer')
+  on conflict (id) do update
+    set event_id = excluded.event_id, role = 'organizer', display_name = excluded.display_name;
+
+  return v_event;
+end;
+$$;
