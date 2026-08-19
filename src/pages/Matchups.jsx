@@ -22,8 +22,17 @@ export default function Matchups() {
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
 
-  const teamPlayers = teamId => players.filter(p => p.team_id === teamId);
   const size = fmt => fmt === 'singles' ? 1 : 2;
+
+  // Players already placed in a match within this round — they can't be picked again in it.
+  const usedInRound = roundId => new Set(
+    matches.filter(m => m.round_id === roundId)
+      .flatMap(m => [...m.side_a_players, ...m.side_b_players]));
+  // Team's players still available to pick for the given round.
+  const availablePlayers = (teamId, roundId) => {
+    const used = usedInRound(roundId);
+    return players.filter(p => p.team_id === teamId && !used.has(p.id));
+  };
 
   async function addMatch(round, aIds, bIds) {
     const seq = matches.filter(m => m.round_id === round.id).length + 1;
@@ -52,8 +61,8 @@ export default function Matchups() {
           </ul>
           {teams.length === 2 &&
             <MatchBuilder n={size(r.format)}
-              teamA={{ team: teams[0], players: teamPlayers(teams[0].id) }}
-              teamB={{ team: teams[1], players: teamPlayers(teams[1].id) }}
+              teamA={{ team: teams[0], players: availablePlayers(teams[0].id, r.id) }}
+              teamB={{ team: teams[1], players: availablePlayers(teams[1].id, r.id) }}
               onAdd={(a, b) => addMatch(r, a, b)} />}
         </section>
       ))}
