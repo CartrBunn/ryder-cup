@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { playerCreds } from '../lib/playerAuth';
 
+// Players join with just name + join code + PIN — no email.
 export default function Signup() {
-  const [form, setForm] = useState({ email: '', password: '', name: '', handicap: '', code: '' });
+  const [form, setForm] = useState({ name: '', handicap: '', code: '', pin: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const nav = useNavigate();
@@ -12,20 +14,25 @@ export default function Signup() {
   const set = k => e => setForm({ ...form, [k]: e.target.value });
 
   async function submit() {
-    setErr(''); setBusy(true);
+    setErr('');
+    if (!form.code.trim() || !form.name.trim()) return setErr('Enter your name and the join code.');
+    if (!/^\d{4,10}$/.test(form.pin)) return setErr('Choose a PIN of 4–10 digits.');
+    setBusy(true);
     try {
-      // 1) create the auth user (or sign in if it already exists)
-      let { error } = await supabase.auth.signUp({ email: form.email, password: form.password });
-      if (error && !/already registered/i.test(error.message)) throw error;
+      const { email, password } = playerCreds(form);
+      // Create the player's hidden account. If it already exists, this name is taken in the event.
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) {
-        const s = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
-        if (s.error) throw s.error;
+        if (/already registered/i.test(error.message))
+          throw new Error('That name is already taken in this event — add a last initial, or use Log in if it\'s you.');
+        throw error;
       }
-      // 2) redeem the join code -> creates the profile with name + handicap
+      const s = await supabase.auth.signInWithPassword({ email, password });
+      if (s.error) throw s.error;
       const { error: rpcErr } = await supabase.rpc('redeem_join_code', {
         p_code: form.code.trim(),
         p_name: form.name.trim(),
-        p_handicap: Number(form.handicap)
+        p_handicap: Number(form.handicap) || 0
       });
       if (rpcErr) throw rpcErr;
       await refreshProfile();
@@ -43,12 +50,10 @@ export default function Signup() {
       <input placeholder="Event join code" value={form.code} onChange={set('code')} />
       <input placeholder="Your name" value={form.name} onChange={set('name')} />
       <input type="number" step="0.1" placeholder="Handicap (e.g. 14)" value={form.handicap} onChange={set('handicap')} />
-      <hr />
-      <input placeholder="Email" value={form.email} onChange={set('email')} />
-      <input type="password" placeholder="Password" value={form.password} onChange={set('password')} />
+      <input inputMode="numeric" placeholder="Pick a PIN (4–10 digits)" value={form.pin} onChange={set('pin')} />
       {err && <p className="err">{err}</p>}
       <button className="primary" disabled={busy} onClick={submit}>{busy ? 'Joining…' : 'Join'}</button>
-      <p className="muted">Already joined? <Link to="/login">Sign in</Link></p>
+      <p className="muted">Already joined? <Link to="/login">Log in</Link></p>
       <p className="muted">Organizing? <Link to="/start">Start a new event</Link></p>
     </div>
   );

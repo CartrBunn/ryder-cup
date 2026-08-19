@@ -28,7 +28,12 @@ export function AuthProvider({ children }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const refreshProfile = () => loadProfile(session?.user?.id);
+  // Fetch the session fresh rather than trusting the closed-over `session` state, which
+  // can be stale right after a sign-in (e.g. the join flow signs in then loads the profile).
+  const refreshProfile = async () => {
+    const { data } = await supabase.auth.getSession();
+    await loadProfile(data.session?.user?.id);
+  };
 
   return (
     <AuthCtx.Provider value={{ session, profile, loading, refreshProfile }}>

@@ -102,6 +102,14 @@ begin
   select id into v_event from events where join_code = p_code limit 1;
   if v_event is null then raise exception 'Invalid join code'; end if;
 
+  -- Names are the login identity within an event, so they must be unique there.
+  if exists (
+    select 1 from profiles
+    where event_id = v_event and lower(display_name) = lower(p_name) and id <> auth.uid()
+  ) then
+    raise exception 'That name is already taken in this event — add a last initial.';
+  end if;
+
   insert into profiles (id, event_id, display_name, handicap, role)
   values (auth.uid(), v_event, p_name, p_handicap, 'player')
   on conflict (id) do update
