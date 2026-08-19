@@ -9,6 +9,12 @@ const ROUND_TEMPLATE = [
   { seq: 2, name: 'Alternate Shot', format: 'alternate_shot' },
   { seq: 3, name: 'Singles', format: 'singles' }
 ];
+const FORMATS = [
+  { value: 'scramble', label: 'Scramble', size: 2 },
+  { value: 'alternate_shot', label: 'Alternate Shot', size: 2 },
+  { value: 'singles', label: 'Singles', size: 1 }
+];
+const sideSize = fmt => FORMATS.find(f => f.value === fmt)?.size ?? 2;
 
 export default function AdminSetup() {
   const { profile, refreshProfile } = useAuth();
@@ -74,9 +80,20 @@ export default function AdminSetup() {
     flash('Team saved');
     load();
   }
+  async function ensureCourse() {
+    if (course?.id) return course;
+    const { data } = await supabase.from('courses').upsert({ ...course, event_id: event.id }).select().single();
+    setCourse(data);
+    return data;
+  }
   async function createRounds() {
-    if (!course?.id) { flash('Save the course first'); return; }
-    await supabase.from('rounds').insert(ROUND_TEMPLATE.map(t => ({ ...t, event_id: event.id, course_id: course.id })));
+    const c = await ensureCourse();
+    await supabase.from('rounds').insert(ROUND_TEMPLATE.map(t => ({ ...t, event_id: event.id, course_id: c.id })));
+    load();
+  }
+  async function saveRound(r) {
+    await supabase.from('rounds').update({ name: r.name, format: r.format }).eq('id', r.id);
+    flash('Round saved');
     load();
   }
   async function removePlayer(p) {
@@ -163,7 +180,17 @@ export default function AdminSetup() {
         <h3>Rounds</h3>
         {rounds.length === 0
           ? <button className="primary" onClick={createRounds}>Create the 3 rounds</button>
-          : <ul className="clean">{rounds.map(r => <li key={r.id}>{r.seq}. {r.name} <span className="dim">({r.format.replace('_',' ')})</span></li>)}</ul>}
+          : rounds.map((r, i) => (
+            <div className="roundrow" key={r.id}>
+              <span className="dim">{r.seq}.</span>
+              <input value={r.name} onChange={e => setRounds(rs => rs.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
+              <select value={r.format} onChange={e => setRounds(rs => rs.map((x, j) => j === i ? { ...x, format: e.target.value } : x))}>
+                {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+              <span className="dim small">{sideSize(r.format)} per side</span>
+              <button onClick={() => saveRound(r)}>Save</button>
+            </div>
+          ))}
       </section>
     </div>
   );
