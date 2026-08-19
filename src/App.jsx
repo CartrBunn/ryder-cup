@@ -24,12 +24,12 @@ function Nav() {
     <nav className="nav">
       <Link to="/" className="brand">⛳ Ryder Cup</Link>
       <div className="navlinks">
-        <Link to="/">Leaderboard</Link>
+        {profile && <Link to="/">Leaderboard</Link>}
         {isAdmin && <Link to="/draft">Draft</Link>}
         {isAdmin && <Link to="/matchups">Matchups</Link>}
         {profile?.role === 'organizer' && <Link to="/admin">Setup</Link>}
       </div>
-      <span className="whoami">{profile?.display_name} · {profile?.role}</span>
+      {profile && <span className="whoami">{profile.display_name} · {profile.role}</span>}
       <button className="logout" onClick={logout}>Log out</button>
     </nav>
   );
