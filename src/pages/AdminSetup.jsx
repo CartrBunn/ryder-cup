@@ -3,7 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
-const DEFAULT_HOLES = Array.from({ length: 18 }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
+const makeHoles = n => Array.from({ length: n }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
+const DEFAULT_HOLES = makeHoles(18);
 const ROUND_TEMPLATE = [
   { seq: 1, name: 'Scramble', format: 'scramble' },
   { seq: 2, name: 'Alternate Shot', format: 'alternate_shot' },
@@ -109,6 +110,14 @@ export default function AdminSetup() {
     return { ...c, holes };
   });
 
+  // Switch between a 9- and 18-hole course, preserving any edited pars/stroke indexes:
+  // keep the first n holes when shrinking, append defaults when growing.
+  const setHoleCount = n => setCourse(c => {
+    const cur = c.holes || [];
+    const holes = n <= cur.length ? cur.slice(0, n) : [...cur, ...makeHoles(n).slice(cur.length)];
+    return { ...c, holes };
+  });
+
   return (
     <div className="stack">
       <h1>Event setup</h1>
@@ -130,6 +139,11 @@ export default function AdminSetup() {
       <section className="card">
         <h3>Course</h3>
         <label>Course name<input value={course.name} onChange={e => setCourse({ ...course, name: e.target.value })} /></label>
+        <div className="row" style={{ margin: '4px 0 12px' }}>
+          <span className="muted">Holes:</span>
+          <button className={course.holes.length === 9 ? 'primary' : ''} onClick={() => setHoleCount(9)}>9</button>
+          <button className={course.holes.length === 18 ? 'primary' : ''} onClick={() => setHoleCount(18)}>18</button>
+        </div>
         <table className="scorecard">
           <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th></tr></thead>
           <tbody>
