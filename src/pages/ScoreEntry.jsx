@@ -28,6 +28,31 @@ export default function ScoreEntry() {
     })();
   }, [id]);
 
+  // Live sync: apply other people's hole edits (and a submit by the co-scorer) to this open match.
+  useEffect(() => {
+    const ch = supabase.channel('match-' + id)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'hole_scores', filter: `match_id=eq.${id}` },
+        payload => {
+          // Ignore our own echoes so we never fight the cell we're typing in.
+          if (payload.new && payload.new.entered_by === profile.id) return;
+          const row = payload.new ?? payload.old;
+          setGross(prev => {
+            const next = { ...prev, [row.side]: { ...prev[row.side] } };
+            if (payload.eventType === 'DELETE') delete next[row.side][row.hole];
+            else next[row.side][row.hole] = payload.new.gross;
+            return next;
+          });
+          setSaving('Updated');
+          setTimeout(() => setSaving(''), 800);
+        })
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${id}` },
+        payload => setBundle(b => b ? { ...b, match: { ...b.match, ...payload.new } } : b))
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [id, profile.id]);
+
   const profilesById = useMemo(
     () => bundle ? Object.fromEntries(bundle.profiles.map(p => [p.id, p])) : {}, [bundle]);
 

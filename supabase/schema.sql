@@ -246,22 +246,21 @@ $$;
 
 -- ---------- realtime ----------
 
--- Broadcast draft changes so the Draft page updates live on every device
--- (picks and the alternating turn-lock) without a manual reload. RLS still applies,
--- and read_profiles/read_teams already allow authenticated reads.
+-- Broadcast live changes to every open device without a manual reload:
+--   profiles/teams  -> Draft picks and the alternating turn-lock
+--   hole_scores     -> co-scorers see each other's hole entries live
+--   matches         -> a submitted result / status update reflects everywhere
+-- RLS still applies; the read_* policies already allow authenticated reads.
 -- Guarded so re-running this file is a no-op if the tables are already published.
 do $$
+declare tbl text;
 begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles'
-  ) then
-    alter publication supabase_realtime add table profiles;
-  end if;
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'teams'
-  ) then
-    alter publication supabase_realtime add table teams;
-  end if;
+  foreach tbl in array array['profiles','teams','hole_scores','matches'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl
+    ) then
+      execute format('alter publication supabase_realtime add table %I', tbl);
+    end if;
+  end loop;
 end $$;

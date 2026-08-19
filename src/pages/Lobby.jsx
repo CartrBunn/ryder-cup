@@ -11,8 +11,8 @@ export default function Lobby() {
 
   useEffect(() => {
     if (!profile?.event_id) return;
-    (async () => {
-      const evt = profile.event_id;
+    const evt = profile.event_id;
+    async function load() {
       const [{ data: event }, { data: teams }, { data: profiles }, { data: courses },
              { data: rounds }, { data: matches }, { data: scores }] = await Promise.all([
         supabase.from('events').select('*').eq('id', evt).single(),
@@ -25,7 +25,10 @@ export default function Lobby() {
       ]);
       setData({ event, teams: teams || [], profiles: profiles || [], courses: courses || [],
                 rounds: rounds || [], matches: matches || [], scores: scores || [] });
-    })();
+    }
+    load();
+    const t = setInterval(load, 60000);   // auto-refresh the board every minute
+    return () => clearInterval(t);
   }, [profile?.event_id]);
 
   if (!profile) return <div className="center">No event yet.</div>;
