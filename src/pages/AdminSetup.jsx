@@ -61,9 +61,18 @@ export default function AdminSetup() {
     load();
   }
   async function saveTeam(t) {
-    await supabase.from('teams').update({ name: t.name, color: t.color, captain_id: t.captain_id }).eq('id', t.id);
-    if (t.captain_id) await supabase.from('profiles').update({ role: 'captain' }).eq('id', t.captain_id);
+    const newCaptain = t.captain_id || null;
+    // Read the outgoing captain so we can demote them if the captain changed.
+    const { data: prev } = await supabase.from('teams').select('captain_id').eq('id', t.id).single();
+    await supabase.from('teams').update({ name: t.name, color: t.color, captain_id: newCaptain }).eq('id', t.id);
+    // Demote the previous captain back to player (only if they're still a plain captain,
+    // so we never strip an organizer who happened to be captaining).
+    if (prev?.captain_id && prev.captain_id !== newCaptain) {
+      await supabase.from('profiles').update({ role: 'player' }).eq('id', prev.captain_id).eq('role', 'captain');
+    }
+    if (newCaptain) await supabase.from('profiles').update({ role: 'captain' }).eq('id', newCaptain);
     flash('Team saved');
+    load();
   }
   async function createRounds() {
     if (!course?.id) { flash('Save the course first'); return; }

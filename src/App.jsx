@@ -1,5 +1,6 @@
-import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { supabase } from './supabaseClient';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Lobby from './pages/Lobby';
@@ -12,8 +13,13 @@ import StartEvent from './pages/StartEvent';
 function Nav() {
   const { session, profile } = useAuth();
   const loc = useLocation();
+  const nav = useNavigate();
   if (!session) return null;
   const isAdmin = profile && ['organizer', 'captain'].includes(profile.role);
+  async function logout() {
+    await supabase.auth.signOut();
+    nav('/login');
+  }
   return (
     <nav className="nav">
       <Link to="/" className="brand">⛳ Ryder Cup</Link>
@@ -24,6 +30,7 @@ function Nav() {
         {profile?.role === 'organizer' && <Link to="/admin">Setup</Link>}
       </div>
       <span className="whoami">{profile?.display_name} · {profile?.role}</span>
+      <button className="logout" onClick={logout}>Log out</button>
     </nav>
   );
 }

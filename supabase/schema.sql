@@ -243,3 +243,25 @@ begin
   delete from profiles where id = p_player_id;
 end;
 $$;
+
+-- ---------- realtime ----------
+
+-- Broadcast draft changes so the Draft page updates live on every device
+-- (picks and the alternating turn-lock) without a manual reload. RLS still applies,
+-- and read_profiles/read_teams already allow authenticated reads.
+-- Guarded so re-running this file is a no-op if the tables are already published.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles'
+  ) then
+    alter publication supabase_realtime add table profiles;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'teams'
+  ) then
+    alter publication supabase_realtime add table teams;
+  end if;
+end $$;

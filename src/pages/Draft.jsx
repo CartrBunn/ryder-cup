@@ -22,6 +22,19 @@ export default function Draft() {
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
 
+  // Live sync: reload when any team/roster change lands so both captains see picks
+  // (and the turn lock) update without a manual refresh.
+  useEffect(() => {
+    if (!profile?.event_id) return;
+    const ch = supabase.channel('draft-' + profile.event_id)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `event_id=eq.${profile.event_id}` }, load)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'teams', filter: `event_id=eq.${profile.event_id}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile?.event_id]);
+
   const pool = players.filter(p => !p.team_id);
   const picksMade = players.filter(p => p.team_id).length;
   const order = ['A', 'B', 'B', 'A'];                 // snake pattern, repeats
@@ -62,7 +75,9 @@ export default function Draft() {
       {err && <p className="err">{err}</p>}
       {teams.length < 2 ? <p className="muted">Create two teams in Setup first.</p> : (
         <>
-          <p className="muted">Next pick (snake order): <strong>{nextTeam?.name || '—'}</strong></p>
+          {pool.length > 0
+            ? <p className="muted">Next pick (snake order): <strong>{nextTeam?.name || '—'}</strong> — the other team is locked until they pick.</p>
+            : <p className="muted">Draft complete.</p>}
           <div className="cols2">
             {teams.map(t => (
               <div className="card" key={t.id}>
@@ -90,7 +105,7 @@ export default function Draft() {
                 <span>{p.display_name} <span className="dim">({p.handicap})</span></span>
                 <span className="row">
                   {teams.filter(t => canPickFor(t.id)).map(t =>
-                    <button key={t.id} disabled={busyId === p.id} onClick={() => assign(p.id, t.id)}>→ {t.name}</button>)}
+                    <button key={t.id} disabled={busyId === p.id || t.id !== nextTeam?.id} onClick={() => assign(p.id, t.id)}>→ {t.name}</button>)}
                   <button disabled={busyId === p.id} onClick={() => removePlayer(p.id)}>✕ Remove</button>
                 </span>
               </div>
