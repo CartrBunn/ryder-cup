@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { supabase, createTempClient } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { playerCreds } from '../lib/playerAuth';
 
 const makeHoles = n => Array.from({ length: n }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
 const DEFAULT_HOLES = makeHoles(18);
@@ -25,6 +26,8 @@ export default function AdminSetup() {
   const [course, setCourse] = useState(null);
   const [rounds, setRounds] = useState([]);
   const [msg, setMsg] = useState('');
+  const [newPlayer, setNewPlayer] = useState({ name: '', handicap: '', pin: '' });
+  const [addingPlayer, setAddingPlayer] = useState(false);
 
   async function load() {
     if (!profile?.event_id) return;
@@ -103,6 +106,32 @@ export default function AdminSetup() {
     if (error) { flash(error.message); return; }
     flash('Player removed');
     load();
+  }
+  async function addPlayer() {
+    const name = newPlayer.name.trim();
+    if (!name) return flash('Enter a name');
+    if (!/^\d{4}$/.test(newPlayer.pin)) return flash('PIN must be 4 digits');
+    setAddingPlayer(true);
+    // Create the player's account on a throwaway client so the organizer's session is untouched.
+    const temp = createTempClient();
+    try {
+      const { email, password } = playerCreds({ name, code: event.join_code, pin: newPlayer.pin });
+      const { error } = await temp.auth.signUp({ email, password });
+      if (error) throw new Error(/already registered/i.test(error.message)
+        ? 'That name is already taken in this event.' : error.message);
+      const { error: rpcErr } = await temp.rpc('redeem_join_code', {
+        p_code: event.join_code, p_name: name, p_handicap: Number(newPlayer.handicap) || 0
+      });
+      if (rpcErr) throw rpcErr;
+      await temp.auth.signOut();
+      flash(`Added ${name} — PIN ${newPlayer.pin}`);
+      setNewPlayer({ name: '', handicap: '', pin: '' });
+      load();
+    } catch (e) {
+      flash(e.message || String(e));
+    } finally {
+      setAddingPlayer(false);
+    }
   }
 
   const setHole = (i, key, val) => setCourse(c => {
@@ -188,6 +217,18 @@ export default function AdminSetup() {
                 </li>
               ))}
             </ul>}
+        <div className="addplayer">
+          <input placeholder="Name" value={newPlayer.name}
+            onChange={e => setNewPlayer({ ...newPlayer, name: e.target.value })} />
+          <input type="number" step="0.1" placeholder="Handicap" value={newPlayer.handicap}
+            onChange={e => setNewPlayer({ ...newPlayer, handicap: e.target.value })} />
+          <input inputMode="numeric" maxLength={4} placeholder="4-digit PIN" value={newPlayer.pin}
+            onChange={e => setNewPlayer({ ...newPlayer, pin: e.target.value.replace(/\D/g, '') })} />
+          <button className="primary" disabled={addingPlayer} onClick={addPlayer}>
+            {addingPlayer ? 'Adding…' : 'Add player'}
+          </button>
+        </div>
+        <p className="muted small">Share the PIN with the player — they log in with the join code, their name, and this PIN.</p>
       </section>
 
       <section className="card">

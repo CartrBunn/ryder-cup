@@ -16,7 +16,7 @@ export default function Signup() {
   async function submit() {
     setErr('');
     if (!form.code.trim() || !form.name.trim()) return setErr('Enter your name and the join code.');
-    if (!/^\d{4,10}$/.test(form.pin)) return setErr('Choose a PIN of 4–10 digits.');
+    if (!/^\d{4}$/.test(form.pin)) return setErr('Choose a 4-digit PIN.');
     setBusy(true);
     try {
       const { email, password } = playerCreds(form);
@@ -50,7 +50,8 @@ export default function Signup() {
       <input placeholder="Event join code" value={form.code} onChange={set('code')} />
       <input placeholder="Your name" value={form.name} onChange={set('name')} />
       <input type="number" step="0.1" placeholder="Handicap (e.g. 14)" value={form.handicap} onChange={set('handicap')} />
-      <input inputMode="numeric" placeholder="Pick a PIN (4–10 digits)" value={form.pin} onChange={set('pin')} />
+      <input inputMode="numeric" maxLength={4} placeholder="Pick a 4-digit PIN" value={form.pin}
+        onChange={e => setForm({ ...form, pin: e.target.value.replace(/\D/g, '') })} />
       {err && <p className="err">{err}</p>}
       <button className="primary" disabled={busy} onClick={submit}>{busy ? 'Joining…' : 'Join'}</button>
       <p className="muted">Already joined? <Link to="/login">Log in</Link></p>

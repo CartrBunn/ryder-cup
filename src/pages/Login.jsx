@@ -48,7 +48,8 @@ export default function Login() {
         <>
           <input placeholder="Event join code" value={player.code} onChange={setP('code')} />
           <input placeholder="Your name" value={player.name} onChange={setP('name')} />
-          <input inputMode="numeric" type="password" placeholder="PIN" value={player.pin} onChange={setP('pin')} />
+          <input inputMode="numeric" type="password" maxLength={4} placeholder="4-digit PIN"
+            value={player.pin} onChange={e => setPlayer({ ...player, pin: e.target.value.replace(/\D/g, '') })} />
         </>
       ) : (
         <>

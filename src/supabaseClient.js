@@ -10,3 +10,10 @@ if (!url || !publishableKey) {
 }
 
 export const supabase = createClient(url, publishableKey);
+
+// A throwaway client that does NOT persist or share the main session. Used when an organizer
+// creates a player account (signUp signs the caller in), so the organizer's own session stays put.
+export const createTempClient = () =>
+  createClient(url, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-temp-admin' }
+  });
