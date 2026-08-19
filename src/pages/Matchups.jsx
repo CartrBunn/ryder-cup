@@ -81,7 +81,11 @@ function MatchBuilder({ n, teamA, teamB, onAdd }) {
   const [b, setB] = useState([]);
   const toggle = (arr, set, id) =>
     set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id].slice(-n));
-  const ready = a.length === n && b.length === n;
+  // Normally each side needs n players, but if a team has fewer left (e.g. an odd
+  // 1-vs-2 leftover), it only needs however many remain — so the last match can still form.
+  const needA = Math.min(n, teamA.players.length);
+  const needB = Math.min(n, teamB.players.length);
+  const ready = needA > 0 && needB > 0 && a.length === needA && b.length === needB;
   return (
     <div className="builder">
       <div className="cols2">
