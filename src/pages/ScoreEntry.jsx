@@ -69,6 +69,9 @@ export default function ScoreEntry() {
   const { match, course } = bundle;
   const holes = course.holes;
   const nameOf = ids => ids.map(i => profilesById[i]?.display_name || '—').join(' / ');
+  const canEdit = profile.role === 'organizer'
+    || match.side_a_players.includes(profile.id)
+    || match.side_b_players.includes(profile.id);
 
   async function setHole(side, hole, value) {
     const v = value === '' ? null : Number(value);
@@ -126,12 +129,12 @@ export default function ScoreEntry() {
                   <td className="dim">{h.strokeIndex}</td>
                   <td>
                     <input className="hole" inputMode="numeric" value={gross.A[h.number] ?? ''}
-                      onChange={e => setHole('A', h.number, e.target.value)} />
+                      onChange={e => setHole('A', h.number, e.target.value)} disabled={!canEdit} />
                     {aStk > 0 && <span className="pop">•{aStk}</span>}
                   </td>
                   <td>
                     <input className="hole" inputMode="numeric" value={gross.B[h.number] ?? ''}
-                      onChange={e => setHole('B', h.number, e.target.value)} />
+                      onChange={e => setHole('B', h.number, e.target.value)} disabled={!canEdit} />
                     {bStk > 0 && <span className="pop">•{bStk}</span>}
                   </td>
                   <td className={'res ' + (res?.winner || '')}>
@@ -145,10 +148,12 @@ export default function ScoreEntry() {
       </div>
 
       <div className="row">
-        <span className="muted">{saving}</span>
-        <button className="primary" onClick={submit} disabled={match.submitted}>
-          {match.submitted ? 'Submitted' : 'Submit result'}
-        </button>
+        <span className="muted">{canEdit ? saving : 'View only'}</span>
+        {canEdit && (
+          <button className="primary" onClick={submit} disabled={match.submitted}>
+            {match.submitted ? 'Submitted' : 'Submit result'}
+          </button>
+        )}
       </div>
     </div>
   );

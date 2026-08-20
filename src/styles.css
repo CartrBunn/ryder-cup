@@ -51,6 +51,7 @@ h1{color:var(--paper)}
 .rhead{display:flex;justify-content:space-between;align-items:baseline;padding:13px 16px;border-bottom:1px solid var(--hair)}
 .rname{font-weight:800}.rsub{color:var(--muted);font-size:12px;text-transform:capitalize}
 .match{display:grid;grid-template-columns:1fr auto 1fr;align-items:stretch;border-bottom:1px solid var(--hair)}
+.match.clickable{cursor:pointer}.match.clickable:hover .mside,.match.clickable:hover .mstatus{filter:brightness(.96)}
 .match:last-child{border-bottom:none}
 .mside{font-weight:600;font-size:14px;padding:11px 8px 11px 16px;display:flex;align-items:center}
 .mside.right{text-align:right;padding:11px 16px 11px 8px;justify-content:flex-end}
