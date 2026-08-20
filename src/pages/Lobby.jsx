@@ -52,11 +52,20 @@ export default function Lobby() {
   const aPts = teamA ? (totals[teamA.id] || 0) : 0;
   const bPts = teamB ? (totals[teamB.id] || 0) : 0;
 
-  const teamsById = Object.fromEntries(teams.map(t => [t.id, t]));
-  const sideColor = ids => teamsById[profilesById[ids[0]]?.team_id]?.color || null;
-
   const nameOf = ids => ids.map(id => profilesById[id]?.display_name || '—').join(' / ');
   const winStyle = color => color ? { background: color + '28' } : undefined;
+
+  // Ensure teamA's players always appear on the left to match the tug bar.
+  const matchDisplay = m => {
+    const aTeamId = profilesById[m.side_a_players[0]]?.team_id;
+    const natural = aTeamId === teamA?.id || (!teamA && true);
+    return {
+      leftPlayers: natural ? m.side_a_players : m.side_b_players,
+      rightPlayers: natural ? m.side_b_players : m.side_a_players,
+      leftWon: m.final === (natural ? 'A' : 'B'),
+      rightWon: m.final === (natural ? 'B' : 'A'),
+    };
+  };
 
   return (
     <div className="stack">
@@ -67,13 +76,12 @@ export default function Lobby() {
           <div className="rhead"><span className="rname">{r.name}</span><span className="rsub">{r.format.replace('_',' ')}</span></div>
           {matches.filter(m => m.round_id === r.id).map(m => {
             const c = ctxById[m.id];
-            const aColor = sideColor(m.side_a_players);
-            const bColor = sideColor(m.side_b_players);
+            const { leftPlayers, rightPlayers, leftWon, rightWon } = matchDisplay(m);
             return (
               <div className="match clickable" key={m.id} onClick={() => nav(`/match/${m.id}`)}>
-                <div className="mside" style={m.final === 'A' ? winStyle(aColor) : undefined}>{nameOf(m.side_a_players)}</div>
+                <div className="mside" style={leftWon ? winStyle(teamA?.color) : undefined}>{nameOf(leftPlayers)}</div>
                 <div className="mstatus">{c?.state.status || '—'}</div>
-                <div className="mside right" style={m.final === 'B' ? winStyle(bColor) : undefined}>{nameOf(m.side_b_players)}</div>
+                <div className="mside right" style={rightWon ? winStyle(teamB?.color) : undefined}>{nameOf(rightPlayers)}</div>
               </div>
             );
           })}
