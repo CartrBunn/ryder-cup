@@ -10,6 +10,7 @@ export default function Draft() {
   const [matches, setMatches] = useState([]);
   const [err, setErr] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [teamNames, setTeamNames] = useState({});
 
   async function load() {
     const evt = profile.event_id;
@@ -21,6 +22,9 @@ export default function Draft() {
     setTeams(t || []); setPlayers(p || []); setMatches(m || []);
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
+  useEffect(() => {
+    if (teams.length) setTeamNames(Object.fromEntries(teams.map(t => [t.id, t.name])));
+  }, [teams]);
 
   // Live sync: reload when any team/roster change lands so both captains see picks
   // (and the turn lock) update without a manual refresh.
@@ -60,6 +64,13 @@ export default function Draft() {
     }
   }
 
+  async function saveTeamName(teamId, name) {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === teams.find(t => t.id === teamId)?.name) return;
+    const { error } = await supabase.from('teams').update({ name: trimmed }).eq('id', teamId);
+    if (error) setErr(error.message);
+  }
+
   const assign = (playerId, teamId) =>
     run(playerId, () => supabase.from('profiles').update({ team_id: teamId }).eq('id', playerId));
   const undoPick = playerId =>
@@ -81,7 +92,12 @@ export default function Draft() {
           <div className="cols2">
             {teams.map(t => (
               <div className="card" key={t.id}>
-                <h3><span className="dot" style={{ background: t.color }} /> {t.name}</h3>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="dot" style={{ background: t.color, flexShrink: 0 }} />
+                  <input className="teamname-edit" value={teamNames[t.id] ?? t.name}
+                    onChange={e => setTeamNames(prev => ({ ...prev, [t.id]: e.target.value }))}
+                    onBlur={e => saveTeamName(t.id, e.target.value)} />
+                </h3>
                 <ul className="clean">
                   {players.filter(p => p.team_id === t.id).map(p => (
                     <li key={p.id} className="row between">
