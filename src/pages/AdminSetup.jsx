@@ -28,6 +28,8 @@ export default function AdminSetup() {
   const [msg, setMsg] = useState('');
   const [newPlayer, setNewPlayer] = useState({ name: '', handicap: '', pin: '' });
   const [addingPlayer, setAddingPlayer] = useState(false);
+  const [resetId, setResetId] = useState(null);
+  const [resetPin, setResetPin] = useState('');
 
   async function load() {
     if (!profile?.event_id) return;
@@ -106,6 +108,14 @@ export default function AdminSetup() {
     if (error) { flash(error.message); return; }
     flash('Player removed');
     load();
+  }
+  async function resetPlayerPin(p) {
+    if (!/^\d{4}$/.test(resetPin)) return flash('PIN must be 4 digits');
+    const { password } = playerCreds({ name: p.display_name, code: event.join_code, pin: resetPin });
+    const { error } = await supabase.rpc('admin_reset_player_pin', { p_player_id: p.id, p_new_password: password });
+    if (error) { flash(error.message); return; }
+    flash(`PIN reset for ${p.display_name} — new PIN ${resetPin}`);
+    setResetId(null); setResetPin('');
   }
   async function addPlayer() {
     const name = newPlayer.name.trim();
@@ -213,7 +223,20 @@ export default function AdminSetup() {
               {players.map(p => (
                 <li key={p.id} className="row between">
                   <span>{p.display_name} <span className="dim">({p.handicap}) · {p.role}</span></span>
-                  <button onClick={() => removePlayer(p)}>✕ Remove</button>
+                  {resetId === p.id ? (
+                    <span className="row">
+                      <input inputMode="numeric" maxLength={4} placeholder="New PIN" autoFocus
+                        value={resetPin} onChange={e => setResetPin(e.target.value.replace(/\D/g, ''))}
+                        style={{ width: 90 }} />
+                      <button className="primary" onClick={() => resetPlayerPin(p)}>Save</button>
+                      <button onClick={() => { setResetId(null); setResetPin(''); }}>Cancel</button>
+                    </span>
+                  ) : (
+                    <span className="row">
+                      <button onClick={() => { setResetId(p.id); setResetPin(''); }}>Reset PIN</button>
+                      <button onClick={() => removePlayer(p)}>✕ Remove</button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>}

@@ -252,6 +252,25 @@ begin
 end;
 $$;
 
+-- Reset a player's PIN. A player's PIN is their Supabase auth password (derived in
+-- src/lib/playerAuth.js); the client passes the freshly derived password string and this
+-- re-hashes it. Organizer-only, scoped to the organizer's own event.
+create extension if not exists pgcrypto;
+
+create or replace function admin_reset_player_pin(p_player_id uuid, p_new_password text)
+returns void language plpgsql security definer as $$
+declare v_event uuid;
+begin
+  select event_id into v_event from profiles where id = p_player_id;
+  if v_event is null then raise exception 'Player not found'; end if;
+  if not is_organizer(v_event) then raise exception 'Not authorized'; end if;
+
+  update auth.users
+    set encrypted_password = crypt(p_new_password, gen_salt('bf')), updated_at = now()
+    where id = p_player_id;
+end;
+$$;
+
 -- ---------- realtime ----------
 
 -- Broadcast live changes to every open device without a manual reload:
