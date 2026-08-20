@@ -51,8 +51,12 @@ export default function Lobby() {
   const aPts = teamA ? (totals[teamA.id] || 0) : 0;
   const bPts = teamB ? (totals[teamB.id] || 0) : 0;
 
+  const teamsById = Object.fromEntries(teams.map(t => [t.id, t]));
+  const sideColor = ids => teamsById[profilesById[ids[0]]?.team_id]?.color || null;
+
   const nameOf = ids => ids.map(id => profilesById[id]?.display_name || '—').join(' / ');
   const iAmIn = m => m.side_a_players.includes(profile.id) || m.side_b_players.includes(profile.id);
+  const winStyle = color => color ? { background: color + '28', alignSelf: 'stretch', display: 'flex', alignItems: 'center' } : undefined;
 
   return (
     <div className="stack">
@@ -63,11 +67,13 @@ export default function Lobby() {
           <div className="rhead"><span className="rname">{r.name}</span><span className="rsub">{r.format.replace('_',' ')}</span></div>
           {matches.filter(m => m.round_id === r.id).map(m => {
             const c = ctxById[m.id];
+            const aColor = sideColor(m.side_a_players);
+            const bColor = sideColor(m.side_b_players);
             return (
               <div className="match" key={m.id}>
-                <div className="mside">{nameOf(m.side_a_players)}</div>
+                <div className="mside" style={m.final === 'A' ? winStyle(aColor) : undefined}>{nameOf(m.side_a_players)}</div>
                 <div className="mstatus">{c?.state.status || '—'}</div>
-                <div className="mside right">{nameOf(m.side_b_players)}</div>
+                <div className="mside right" style={m.final === 'B' ? winStyle(bColor) : undefined}>{nameOf(m.side_b_players)}</div>
                 {iAmIn(m) && !m.submitted && <Link className="enter" to={`/match/${m.id}`}>Enter scores</Link>}
               </div>
             );
