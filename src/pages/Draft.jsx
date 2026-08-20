@@ -12,6 +12,7 @@ export default function Draft() {
   const [busyId, setBusyId] = useState(null);
   const [teamNames, setTeamNames] = useState({});
   const [pick, setPick] = useState(null);          // live "Team drafted Player" banner
+  const [myHandicap, setMyHandicap] = useState('');
 
   // Latest snapshots for the realtime handler, so it can diff without stale closures.
   const teamsRef = useRef([]);
@@ -28,6 +29,8 @@ export default function Draft() {
       supabase.from('matches').select('id, side_a_players, side_b_players').eq('event_id', evt)
     ]);
     setTeams(t || []); setPlayers(p || []); setMatches(m || []);
+    const me = (p || []).find(x => x.id === profile.id);
+    if (me) setMyHandicap(String(me.handicap));
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
   useEffect(() => {
@@ -93,6 +96,14 @@ export default function Draft() {
     }
   }
 
+  async function saveMyHandicap() {
+    const val = Number(myHandicap);
+    if (isNaN(val)) return;
+    const { error } = await supabase.from('profiles').update({ handicap: val }).eq('id', profile.id);
+    if (error) setErr(error.message);
+    else load();
+  }
+
   async function saveTeamName(teamId, name) {
     const trimmed = name.trim();
     if (!trimmed || trimmed === teams.find(t => t.id === teamId)?.name) return;
@@ -138,7 +149,14 @@ export default function Draft() {
                 <ul className="clean">
                   {players.filter(p => p.team_id === t.id).map(p => (
                     <li key={p.id} className="row between">
-                      <span>{p.display_name} <span className="dim">({p.handicap})</span>
+                      <span>{p.display_name} (<span className="dim">
+                        {p.id === profile.id
+                          ? <input type="number" step="0.1" className="hcap-edit"
+                              value={myHandicap}
+                              onChange={e => setMyHandicap(e.target.value)}
+                              onBlur={saveMyHandicap} />
+                          : p.handicap}
+                      </span>)
                         {inMatchup(p.id) && <span className="dim"> · in matchups</span>}
                       </span>
                       {canPickFor(t.id) && (
@@ -158,7 +176,14 @@ export default function Draft() {
           <div className="pool">
             {pool.map(p => (
               <div className="poolrow" key={p.id}>
-                <span>{p.display_name} <span className="dim">({p.handicap})</span></span>
+                <span>{p.display_name} (<span className="dim">
+                  {p.id === profile.id
+                    ? <input type="number" step="0.1" className="hcap-edit"
+                        value={myHandicap}
+                        onChange={e => setMyHandicap(e.target.value)}
+                        onBlur={saveMyHandicap} />
+                    : p.handicap}
+                </span>)</span>
                 {canManage && (
                   <span className="row">
                     {teams.filter(t => canPickFor(t.id)).map(t =>

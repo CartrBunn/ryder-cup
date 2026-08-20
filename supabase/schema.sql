@@ -144,6 +144,10 @@ create policy read_scores   on hole_scores for select to authenticated using (tr
 create policy update_own_profile on profiles for update to authenticated
   using (id = auth.uid());
 
+-- Organizers can update any profile in their own event (e.g. editing a player's handicap).
+create policy organizer_update_profiles on profiles for update to authenticated
+  using (is_organizer(event_id));
+
 -- Organizer/captain manage structure.
 create policy admin_write_events  on events   for all to authenticated
   using (is_organizer(id)) with check (is_organizer(id));

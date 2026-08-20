@@ -30,6 +30,7 @@ export default function AdminSetup() {
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [resetId, setResetId] = useState(null);
   const [resetPin, setResetPin] = useState('');
+  const [handicaps, setHandicaps] = useState({});
 
   async function load() {
     if (!profile?.event_id) return;
@@ -98,6 +99,13 @@ export default function AdminSetup() {
   async function saveRound(r) {
     await supabase.from('rounds').update({ name: r.name, format: r.format }).eq('id', r.id);
     flash('Round saved');
+    load();
+  }
+  async function saveHandicap(playerId) {
+    const val = handicaps[playerId];
+    if (val === undefined) return;
+    const { error } = await supabase.from('profiles').update({ handicap: Number(val) }).eq('id', playerId);
+    if (error) { flash(error.message); return; }
     load();
   }
   async function removePlayer(p) {
@@ -220,7 +228,12 @@ export default function AdminSetup() {
           : <ul className="clean">
               {players.map(p => (
                 <li key={p.id} className="row between">
-                  <span>{p.display_name} <span className="dim">({p.handicap}) · {p.role}</span></span>
+                  <span>{p.display_name} (<input
+                    type="number" step="0.1" className="hcap-edit"
+                    value={handicaps[p.id] ?? p.handicap}
+                    onChange={e => setHandicaps(h => ({ ...h, [p.id]: e.target.value }))}
+                    onBlur={() => saveHandicap(p.id)}
+                  />) <span className="dim">· {p.role}</span></span>
                   {resetId === p.id ? (
                     <span className="row">
                       <input inputMode="numeric" maxLength={4} placeholder="New PIN" autoFocus
