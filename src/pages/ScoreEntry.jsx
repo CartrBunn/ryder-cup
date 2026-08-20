@@ -109,38 +109,40 @@ export default function ScoreEntry() {
       <p className="muted small">Playing handicaps this format — A: {computed.aHcp}, B: {computed.bHcp}
         {computed.strokeMap.receiver && ` · ${computed.strokeMap.receiver} gets ${Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)`}</p>
 
-      <table className="card scorecard">
-        <thead>
-          <tr><th>Hole</th><th>Par</th><th>SI</th><th>A</th><th>B</th><th>Result</th></tr>
-        </thead>
-        <tbody>
-          {holes.map(h => {
-            const res = computed.state.results.find(r => r.hole === h.number);
-            const aStk = computed.strokeMap.aStrokes[h.number] || 0;
-            const bStk = computed.strokeMap.bStrokes[h.number] || 0;
-            return (
-              <tr key={h.number}>
-                <td>{h.number}</td>
-                <td className="dim">{h.par}</td>
-                <td className="dim">{h.strokeIndex}</td>
-                <td>
-                  <input className="hole" inputMode="numeric" value={gross.A[h.number] ?? ''}
-                    onChange={e => setHole('A', h.number, e.target.value)} />
-                  {aStk > 0 && <span className="pop">•{aStk}</span>}
-                </td>
-                <td>
-                  <input className="hole" inputMode="numeric" value={gross.B[h.number] ?? ''}
-                    onChange={e => setHole('B', h.number, e.target.value)} />
-                  {bStk > 0 && <span className="pop">•{bStk}</span>}
-                </td>
-                <td className={'res ' + (res?.winner || '')}>
-                  {res?.winner === 'A' ? '◄' : res?.winner === 'B' ? '►' : res?.winner === 'half' ? '=' : ''}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="table-scroll card">
+        <table className="scorecard">
+          <thead>
+            <tr><th>Hole</th><th>Par</th><th>SI</th><th>A</th><th>B</th><th>Result</th></tr>
+          </thead>
+          <tbody>
+            {holes.map(h => {
+              const res = computed.state.results.find(r => r.hole === h.number);
+              const aStk = computed.strokeMap.aStrokes[h.number] || 0;
+              const bStk = computed.strokeMap.bStrokes[h.number] || 0;
+              return (
+                <tr key={h.number}>
+                  <td>{h.number}</td>
+                  <td className="dim">{h.par}</td>
+                  <td className="dim">{h.strokeIndex}</td>
+                  <td>
+                    <input className="hole" inputMode="numeric" value={gross.A[h.number] ?? ''}
+                      onChange={e => setHole('A', h.number, e.target.value)} />
+                    {aStk > 0 && <span className="pop">•{aStk}</span>}
+                  </td>
+                  <td>
+                    <input className="hole" inputMode="numeric" value={gross.B[h.number] ?? ''}
+                      onChange={e => setHole('B', h.number, e.target.value)} />
+                    {bStk > 0 && <span className="pop">•{bStk}</span>}
+                  </td>
+                  <td className={'res ' + (res?.winner || '')}>
+                    {res?.winner === 'A' ? '◄' : res?.winner === 'B' ? '►' : res?.winner === 'half' ? '=' : ''}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <div className="row">
         <span className="muted">{saving}</span>

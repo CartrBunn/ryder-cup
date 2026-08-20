@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './supabaseClient';
@@ -12,22 +13,26 @@ import StartEvent from './pages/StartEvent';
 
 function Nav() {
   const { session, profile } = useAuth();
-  const loc = useLocation();
   const nav = useNavigate();
+  const [open, setOpen] = useState(false);
   if (!session) return null;
   const isAdmin = profile && ['organizer', 'captain'].includes(profile.role);
   async function logout() {
     await supabase.auth.signOut();
     nav('/login');
   }
+  const close = () => setOpen(false);
   return (
     <nav className="nav">
-      <Link to="/" className="brand">⛳ Ryder Cup</Link>
-      <div className="navlinks">
-        {profile && <Link to="/">Leaderboard</Link>}
-        {isAdmin && <Link to="/draft">Draft</Link>}
-        {isAdmin && <Link to="/matchups">Matchups</Link>}
-        {profile?.role === 'organizer' && <Link to="/admin">Setup</Link>}
+      <Link to="/" className="brand" onClick={close}>⛳ Ryder Cup</Link>
+      <button className="hamburger" onClick={() => setOpen(o => !o)} aria-label="Menu">
+        {open ? '✕' : '☰'}
+      </button>
+      <div className={open ? 'navlinks open' : 'navlinks'}>
+        {profile && <Link to="/" onClick={close}>Leaderboard</Link>}
+        {isAdmin && <Link to="/draft" onClick={close}>Draft</Link>}
+        {isAdmin && <Link to="/matchups" onClick={close}>Matchups</Link>}
+        {profile?.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
       </div>
       {profile && <span className="whoami">{profile.display_name} · {profile.role}</span>}
       <button className="logout" onClick={logout}>Log out</button>
