@@ -56,7 +56,7 @@ export default function Lobby() {
 
   const nameOf = ids => ids.map(id => profilesById[id]?.display_name || '—').join(' / ');
   const iAmIn = m => m.side_a_players.includes(profile.id) || m.side_b_players.includes(profile.id);
-  const winStyle = color => color ? { background: color + '28', alignSelf: 'stretch', display: 'flex', alignItems: 'center' } : undefined;
+  const winStyle = color => color ? { background: color + '28' } : undefined;
 
   return (
     <div className="stack">
