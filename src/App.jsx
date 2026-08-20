@@ -30,7 +30,7 @@ function Nav() {
       </button>
       <div className={open ? 'navlinks open' : 'navlinks'}>
         {profile && <Link to="/" onClick={close}>Leaderboard</Link>}
-        {isAdmin && <Link to="/draft" onClick={close}>Draft</Link>}
+        {profile && <Link to="/draft" onClick={close}>Draft</Link>}
         {isAdmin && <Link to="/matchups" onClick={close}>Matchups</Link>}
         {profile?.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
       </div>
@@ -60,7 +60,7 @@ export default function App() {
           <Route path="/start" element={<StartEvent />} />
           <Route path="/" element={<Protected><Lobby /></Protected>} />
           <Route path="/match/:id" element={<Protected><ScoreEntry /></Protected>} />
-          <Route path="/draft" element={<Protected need={['organizer','captain']}><Draft /></Protected>} />
+          <Route path="/draft" element={<Protected><Draft /></Protected>} />
           <Route path="/matchups" element={<Protected need={['organizer','captain']}><Matchups /></Protected>} />
           <Route path="/admin" element={<Protected need={['organizer']}><AdminSetup /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
