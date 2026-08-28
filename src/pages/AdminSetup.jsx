@@ -101,6 +101,25 @@ export default function AdminSetup() {
     flash('Round saved');
     load();
   }
+  async function addRound() {
+    const c = await ensureCourse();
+    const seq = (rounds.length ? rounds[rounds.length - 1].seq : 0) + 1;
+    await supabase.from('rounds').insert({
+      event_id: event.id, course_id: c.id, seq,
+      name: `Round ${seq}`, format: 'singles'
+    });
+    load();
+  }
+  async function removeRound(r) {
+    if (!window.confirm(`Remove "${r.name}"? Any matchups in this round will also be deleted.`)) return;
+    await supabase.from('rounds').delete().eq('id', r.id);
+    // Resequence remaining rounds
+    const remaining = rounds.filter(x => x.id !== r.id);
+    await Promise.all(remaining.map((x, i) =>
+      supabase.from('rounds').update({ seq: i + 1 }).eq('id', x.id)
+    ));
+    load();
+  }
   async function saveHandicap(playerId) {
     const val = handicaps[playerId];
     if (val === undefined) return;
@@ -278,8 +297,10 @@ export default function AdminSetup() {
               </select>
               <span className="dim small">{sideSize(r.format)} per side</span>
               <button onClick={() => saveRound(r)}>Save</button>
+              <button onClick={() => removeRound(r)}>✕</button>
             </div>
           ))}
+        {rounds.length > 0 && <button onClick={addRound} style={{ marginTop: 8 }}>+ Add round</button>}
       </section>
     </div>
   );
