@@ -10,6 +10,7 @@ export default function Login() {
   const [org, setOrg] = useState({ email: '', password: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const nav = useNavigate();
   const { refreshProfile } = useAuth();
 
@@ -31,6 +32,16 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sendReset() {
+    if (!org.email.trim()) return setErr('Enter your email first.');
+    setBusy(true); setErr('');
+    const redirectTo = window.location.origin + import.meta.env.BASE_URL;
+    const { error } = await supabase.auth.resetPasswordForEmail(org.email.trim(), { redirectTo });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setForgotSent(true);
   }
 
   const setP = k => e => setPlayer({ ...player, [k]: e.target.value });
@@ -55,6 +66,10 @@ export default function Login() {
         <>
           <input placeholder="Email" value={org.email} onChange={setO('email')} />
           <input type="password" placeholder="Password" value={org.password} onChange={setO('password')} />
+          {forgotSent
+            ? <p className="muted">Check your email for a reset link.</p>
+            : <button style={{ alignSelf: 'flex-start', padding: 0, background: 'none', color: 'var(--muted)', fontSize: '0.85em', textDecoration: 'underline' }} disabled={busy} onClick={sendReset}>Forgot password?</button>
+          }
         </>
       )}
 

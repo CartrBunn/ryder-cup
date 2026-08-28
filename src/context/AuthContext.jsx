@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isRecovery, setIsRecovery] = useState(false);
 
   async function loadProfile(userId) {
     if (!userId) { setProfile(null); return; }
@@ -22,6 +23,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+      if (_e === 'PASSWORD_RECOVERY') setIsRecovery(true);
       setSession(s);
       await loadProfile(s?.user?.id);
     });
@@ -36,7 +38,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ session, profile, loading, refreshProfile }}>
+    <AuthCtx.Provider value={{ session, profile, loading, refreshProfile, isRecovery, setIsRecovery }}>
       {children}
     </AuthCtx.Provider>
   );

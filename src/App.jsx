@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { supabase } from './supabaseClient';
@@ -10,6 +10,7 @@ import Draft from './pages/Draft';
 import Matchups from './pages/Matchups';
 import ScoreEntry from './pages/ScoreEntry';
 import StartEvent from './pages/StartEvent';
+import ResetPassword from './pages/ResetPassword';
 
 function Nav() {
   const { session, profile } = useAuth();
@@ -49,15 +50,24 @@ function Protected({ children, need }) {
   return children;
 }
 
+function RecoveryRedirect() {
+  const { isRecovery } = useAuth();
+  const nav = useNavigate();
+  useEffect(() => { if (isRecovery) nav('/reset-password', { replace: true }); }, [isRecovery]);
+  return null;
+}
+
 export default function App() {
   return (
     <>
+      <RecoveryRedirect />
       <Nav />
       <main className="page">
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/start" element={<StartEvent />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<Protected><Lobby /></Protected>} />
           <Route path="/match/:id" element={<Protected><ScoreEntry /></Protected>} />
           <Route path="/draft" element={<Protected><Draft /></Protected>} />
