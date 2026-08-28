@@ -98,14 +98,16 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .addplayer{display:grid;grid-template-columns:1fr 90px 100px auto;gap:8px;align-items:center;margin-top:12px}
 .teamrow{display:grid;grid-template-columns:1fr 54px 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
 .teamrow input[type=color]{padding:2px;height:38px}
-.roundrow{display:grid;grid-template-columns:auto 1fr 1fr auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.roundrow{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.btn-icon{padding:0 6px;background:none;color:var(--muted);font-size:1em;line-height:1;border:none;cursor:pointer;opacity:.6}
+.btn-icon:hover{opacity:1;color:var(--err,#c0392b)}
 .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:14px}
 
 @media(max-width:640px){
   .cols4{grid-template-columns:1fr 1fr}
   .cols2{grid-template-columns:1fr}
   .teamrow{grid-template-columns:1fr 1fr}
-  .roundrow{grid-template-columns:auto 1fr 1fr}
+  .roundrow{grid-template-columns:auto 1fr 1fr auto}
   .addplayer{grid-template-columns:1fr 1fr}
   .scorehead{grid-template-columns:1fr;text-align:center;gap:6px}
   .scorehead .right{text-align:center}

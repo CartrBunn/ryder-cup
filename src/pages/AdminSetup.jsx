@@ -290,14 +290,12 @@ export default function AdminSetup() {
           ? <button className="primary" onClick={createRounds}>Create the 3 rounds</button>
           : rounds.map((r, i) => (
             <div className="roundrow" key={r.id}>
-              <span className="dim">{r.seq}.</span>
+              <button className="btn-icon" onClick={() => removeRound(r)} title="Remove round">✕</button>
               <input value={r.name} onChange={e => setRounds(rs => rs.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
               <select value={r.format} onChange={e => setRounds(rs => rs.map((x, j) => j === i ? { ...x, format: e.target.value } : x))}>
                 {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
               </select>
-              <span className="dim small">{sideSize(r.format)} per side</span>
               <button onClick={() => saveRound(r)}>Save</button>
-              <button onClick={() => removeRound(r)}>✕</button>
             </div>
           ))}
         {rounds.length > 0 && <button onClick={addRound} style={{ marginTop: 8 }}>+ Add round</button>}
