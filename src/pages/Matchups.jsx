@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 
-// For each round, build matches by choosing side A player(s) and side B player(s).
 export default function Matchups() {
   const { profile } = useAuth();
   const [rounds, setRounds] = useState([]);
@@ -22,13 +21,15 @@ export default function Matchups() {
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
 
+  const isOrganizer = profile.role === 'organizer';
+  const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
+
   const size = fmt => fmt === 'singles' ? 1 : 2;
 
-  // Players already placed in a match within this round — they can't be picked again in it.
   const usedInRound = roundId => new Set(
     matches.filter(m => m.round_id === roundId)
       .flatMap(m => [...m.side_a_players, ...m.side_b_players]));
-  // Team's players still available to pick for the given round.
+
   const availablePlayers = (teamId, roundId) => {
     const used = usedInRound(roundId);
     return players.filter(p => p.team_id === teamId && !used.has(p.id));
@@ -48,24 +49,38 @@ export default function Matchups() {
     <div className="stack">
       <h1>Set matchups</h1>
       {teams.length < 2 && <p className="muted">Draft teams first.</p>}
-      {rounds.map(r => (
-        <section className="card" key={r.id}>
-          <h3>{r.name} <span className="dim">· {r.format.replace('_', ' ')} · {size(r.format)} per side</span></h3>
-          <ul className="clean">
-            {matches.filter(m => m.round_id === r.id).map(m => (
-              <li key={m.id} className="row between">
-                <span>{names(m.side_a_players, players)} vs {names(m.side_b_players, players)}</span>
-                <button onClick={() => removeMatch(m.id)}>Remove</button>
-              </li>
-            ))}
-          </ul>
-          {teams.length === 2 &&
-            <MatchBuilder n={size(r.format)}
-              teamA={{ team: teams[0], players: availablePlayers(teams[0].id, r.id) }}
-              teamB={{ team: teams[1], players: availablePlayers(teams[1].id, r.id) }}
-              onAdd={(a, b) => addMatch(r, a, b)} />}
-        </section>
-      ))}
+      {rounds.map(r => {
+        const roundMatches = matches.filter(m => m.round_id === r.id);
+        const matchesMade = roundMatches.length;
+        const avA = availablePlayers(teams[0]?.id, r.id);
+        const avB = availablePlayers(teams[1]?.id, r.id);
+        const roundDone = teams.length === 2 && avA.length === 0 && avB.length === 0;
+        return (
+          <section className="card" key={r.id}>
+            <h3>{r.name} <span className="dim">· {r.format.replace('_', ' ')} · {size(r.format)} per side</span></h3>
+            <ul className="clean">
+              {roundMatches.map(m => (
+                <li key={m.id} className="row between">
+                  <span>{names(m.side_a_players, players)} vs {names(m.side_b_players, players)}</span>
+                  <button onClick={() => removeMatch(m.id)}>Remove</button>
+                </li>
+              ))}
+            </ul>
+            {teams.length === 2 && !roundDone &&
+              <SnakeMatchBuilder
+                key={matchesMade}
+                n={size(r.format)}
+                teamA={{ team: teams[0], players: avA }}
+                teamB={{ team: teams[1], players: avB }}
+                matchesMade={matchesMade}
+                isOrganizer={isOrganizer}
+                myTeamId={myTeamId}
+                onAdd={(a, b) => addMatch(r, a, b)}
+              />}
+            {roundDone && <p className="muted small">All players placed.</p>}
+          </section>
+        );
+      })}
       {rounds.length === 0 && <p className="muted">No rounds yet — create them in Setup.</p>}
     </div>
   );
@@ -76,38 +91,105 @@ function names(ids, players) {
   return ids.map(i => by[i] || '—').join(' / ');
 }
 
-function MatchBuilder({ n, teamA, teamB, onAdd }) {
-  const [a, setA] = useState([]);
-  const [b, setB] = useState([]);
-  const toggle = (arr, set, id) =>
-    set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id].slice(-n));
-  // Normally each side needs n players, but if a team has fewer left (e.g. an odd
-  // 1-vs-2 leftover), it only needs however many remain — so the last match can still form.
-  const needA = Math.min(n, teamA.players.length);
-  const needB = Math.min(n, teamB.players.length);
-  const ready = needA > 0 && needB > 0 && a.length === needA && b.length === needB;
+// Snake draft: teams alternate who picks first per match.
+// Match 0 → team A picks first; match 1 → team B picks first; etc.
+// Phase 1 ("pick"): picking team chooses their player(s) and locks in.
+// Phase 2 ("respond"): other team sees who they face, picks their player(s), confirms.
+function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, isOrganizer, myTeamId, onAdd }) {
+  const [phase, setPhase] = useState('pick');
+  const [locked, setLocked] = useState([]);
+  const [sel, setSel] = useState([]);
+
+  // Alternate which team picks first each match slot.
+  const pickerFirst = matchesMade % 2 === 0; // true = teamA picks first
+  const picker    = pickerFirst ? teamA : teamB;
+  const responder = pickerFirst ? teamB : teamA;
+
+  const canAct = side => isOrganizer || myTeamId === side.team.id;
+
+  const toggle = (id, max) =>
+    setSel(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id].slice(-max));
+
+  const needPicker    = Math.min(n, picker.players.length);
+  const needResponder = Math.min(n, responder.players.length);
+
+  if (needPicker === 0) {
+    // Picker has no players left; show respond-only (odd leftover)
+    return (
+      <div className="builder">
+        <p className="muted small">{picker.team.name} has no players left — {responder.team.name} picks the solo match.</p>
+        {canAct(responder) && (
+          <Picker title={responder.team.name} color={responder.team.color}
+            players={responder.players} sel={sel}
+            onToggle={id => toggle(id, needResponder)} />
+        )}
+        {canAct(responder) && sel.length === needResponder && (
+          <button className="primary" onClick={() => {
+            const aIds = pickerFirst ? [] : sel;
+            const bIds = pickerFirst ? sel : [];
+            onAdd(aIds, bIds);
+          }}>Add match</button>
+        )}
+      </div>
+    );
+  }
+
+  if (phase === 'pick') {
+    return (
+      <div className="builder">
+        <p className="muted small">
+          Match {matchesMade + 1} · <strong>{picker.team.name}</strong> picks first
+        </p>
+        {canAct(picker)
+          ? <Picker title={picker.team.name} color={picker.team.color}
+              players={picker.players} sel={sel}
+              onToggle={id => toggle(id, needPicker)} />
+          : <p className="muted small">Waiting for {picker.team.name} to pick…</p>}
+        {canAct(picker) && sel.length === needPicker && (
+          <button className="primary" onClick={() => { setLocked(sel); setSel([]); setPhase('respond'); }}>
+            Lock in
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // respond phase
   return (
     <div className="builder">
-      <div className="cols2">
-        <Picker title={teamA.team.name} players={teamA.players} sel={a} onToggle={id => toggle(a, setA, id)} />
-        <Picker title={teamB.team.name} players={teamB.players} sel={b} onToggle={id => toggle(b, setB, id)} />
+      <p className="muted small">
+        {picker.team.name} locked in: <strong>{locked.map(id => picker.players.find(p => p.id === id)?.display_name).join(' / ')}</strong>
+        {' '}· {responder.team.name} responds
+      </p>
+      {canAct(responder)
+        ? <Picker title={responder.team.name} color={responder.team.color}
+            players={responder.players} sel={sel}
+            onToggle={id => toggle(id, needResponder)} />
+        : <p className="muted small">Waiting for {responder.team.name} to respond…</p>}
+      <div className="row">
+        {canAct(responder) && sel.length === needResponder && (
+          <button className="primary" onClick={() => {
+            const aIds = pickerFirst ? locked : sel;
+            const bIds = pickerFirst ? sel   : locked;
+            onAdd(aIds, bIds);
+          }}>Confirm match</button>
+        )}
+        <button onClick={() => { setLocked([]); setSel([]); setPhase('pick'); }}>Back</button>
       </div>
-      <button className="primary" disabled={!ready} onClick={() => { onAdd(a, b); setA([]); setB([]); }}>
-        Add match
-      </button>
     </div>
   );
 }
-function Picker({ title, players, sel, onToggle }) {
+
+function Picker({ title, color, players, sel, onToggle }) {
   return (
     <div>
-      <div className="dim">{title}</div>
+      <div className="dim" style={color ? { color } : undefined}>{title}</div>
       {players.map(p =>
         <label key={p.id} className={'chip ' + (sel.includes(p.id) ? 'on' : '')}>
           <input type="checkbox" checked={sel.includes(p.id)} onChange={() => onToggle(p.id)} />
           {p.display_name}
         </label>)}
-      {players.length === 0 && <div className="muted small">No players drafted.</div>}
+      {players.length === 0 && <div className="muted small">No players available.</div>}
     </div>
   );
 }
