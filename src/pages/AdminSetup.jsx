@@ -142,6 +142,14 @@ export default function AdminSetup() {
     flash('Player removed');
     load();
   }
+  async function setOrganizerRole(p, makeOrganizer) {
+    const action = makeOrganizer ? `Make ${p.display_name} an organizer?` : `Remove organizer role from ${p.display_name}?`;
+    if (!window.confirm(action)) return;
+    const { error } = await supabase.rpc('set_organizer_role', { p_player_id: p.id, p_make_organizer: makeOrganizer });
+    if (error) { flash(error.message); return; }
+    flash(makeOrganizer ? `${p.display_name} is now an organizer` : `${p.display_name} is now a player`);
+    load();
+  }
   async function resetPlayerPin(p) {
     if (!/^\d{4}$/.test(resetPin)) return flash('PIN must be 4 digits');
     const { password } = playerCreds({ name: p.display_name, code: event.join_code, pin: resetPin });
@@ -279,6 +287,10 @@ export default function AdminSetup() {
                     </span>
                   ) : (
                     <span className="row">
+                      {p.role !== 'organizer'
+                        ? <button onClick={() => setOrganizerRole(p, true)}>Make organizer</button>
+                        : p.id !== profile.id && <button onClick={() => setOrganizerRole(p, false)}>Remove organizer</button>
+                      }
                       <button onClick={() => { setResetId(p.id); setResetPin(''); }}>Reset PIN</button>
                       <button onClick={() => removePlayer(p)}>✕ Remove</button>
                     </span>

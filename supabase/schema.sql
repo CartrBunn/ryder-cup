@@ -301,6 +301,32 @@ begin
 end;
 $$;
 
+-- Promote or demote a player to/from organizer. Organizer-only, scoped to their event.
+-- Guards against removing the last organizer.
+create or replace function set_organizer_role(p_player_id uuid, p_make_organizer boolean)
+returns void language plpgsql security definer as $$
+declare
+  v_event uuid;
+  v_organizer_count int;
+begin
+  select event_id into v_event from profiles where id = p_player_id;
+  if v_event is null then raise exception 'Player not found'; end if;
+  if not is_organizer(v_event) then raise exception 'Not authorized'; end if;
+
+  if not p_make_organizer then
+    select count(*) into v_organizer_count
+    from profiles where event_id = v_event and role = 'organizer';
+    if v_organizer_count <= 1 then
+      raise exception 'Cannot remove the last organizer';
+    end if;
+  end if;
+
+  update profiles
+    set role = case when p_make_organizer then 'organizer' else 'player' end
+  where id = p_player_id and event_id = v_event;
+end;
+$$;
+
 -- ---------- realtime ----------
 
 -- Broadcast live changes to every open device without a manual reload:
