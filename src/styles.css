@@ -91,6 +91,9 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .teamname-edit{border:none;background:transparent;font:inherit;font-weight:700;color:inherit;padding:0;width:100%;border-bottom:2px solid transparent;border-radius:0;margin:0}
 .teamname-edit:hover{border-bottom-color:var(--hair)}
 .teamname-edit:focus{outline:none;border-bottom-color:var(--gold)}
+.name-edit{border:none;background:transparent;font:inherit;color:inherit;padding:0;width:120px;border-bottom:2px solid transparent;border-radius:0;margin:0}
+.name-edit:hover{border-bottom-color:var(--hair)}
+.name-edit:focus{outline:none;border-bottom-color:var(--gold)}
 .hcap-edit{border:none;background:transparent;font:inherit;color:inherit;padding:0;width:42px;border-bottom:2px solid transparent;border-radius:0;margin:0;text-align:center;-moz-appearance:textfield}
 .hcap-edit::-webkit-outer-spin-button,.hcap-edit::-webkit-inner-spin-button{-webkit-appearance:none}
 .hcap-edit:hover{border-bottom-color:var(--hair)}

@@ -31,6 +31,7 @@ export default function AdminSetup() {
   const [resetId, setResetId] = useState(null);
   const [resetPin, setResetPin] = useState('');
   const [handicaps, setHandicaps] = useState({});
+  const [names, setNames] = useState({});
 
   async function load() {
     if (!profile?.event_id) return;
@@ -118,6 +119,13 @@ export default function AdminSetup() {
     await Promise.all(remaining.map((x, i) =>
       supabase.from('rounds').update({ seq: i + 1 }).eq('id', x.id)
     ));
+    load();
+  }
+  async function saveDisplayName(playerId) {
+    const val = names[playerId];
+    if (val === undefined || !val.trim()) return;
+    const { error } = await supabase.rpc('admin_rename_player', { p_player_id: playerId, p_new_name: val.trim() });
+    if (error) { flash(error.message); return; }
     load();
   }
   async function saveHandicap(playerId) {
@@ -247,12 +255,20 @@ export default function AdminSetup() {
           : <ul className="clean">
               {players.map(p => (
                 <li key={p.id} className="row between">
-                  <span>{p.display_name} (<input
-                    type="number" step="0.1" className="hcap-edit"
-                    value={handicaps[p.id] ?? p.handicap}
-                    onChange={e => setHandicaps(h => ({ ...h, [p.id]: e.target.value }))}
-                    onBlur={() => saveHandicap(p.id)}
-                  />) <span className="dim">· {p.role}</span></span>
+                  <span>
+                    <input
+                      className="name-edit"
+                      value={names[p.id] ?? p.display_name}
+                      onChange={e => setNames(n => ({ ...n, [p.id]: e.target.value }))}
+                      onBlur={() => saveDisplayName(p.id)}
+                    />
+                    {' '}(<input
+                      type="number" step="0.1" className="hcap-edit"
+                      value={handicaps[p.id] ?? p.handicap}
+                      onChange={e => setHandicaps(h => ({ ...h, [p.id]: e.target.value }))}
+                      onBlur={() => saveHandicap(p.id)}
+                    />) <span className="dim">· {p.role}</span>
+                  </span>
                   {resetId === p.id ? (
                     <span className="row">
                       <input inputMode="numeric" maxLength={4} placeholder="New PIN" autoFocus

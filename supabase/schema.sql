@@ -275,6 +275,32 @@ begin
 end;
 $$;
 
+-- Rename a player: updates both the synthetic auth email (so they can still log in
+-- with the new name) and profiles.display_name. Uses the same slug logic as playerAuth.js.
+-- Organizer-only, scoped to the organizer's own event.
+create or replace function admin_rename_player(p_player_id uuid, p_new_name text)
+returns void language plpgsql security definer as $$
+declare
+  v_event uuid;
+  v_join_code text;
+  v_name_slug text;
+  v_code_slug text;
+  v_new_email text;
+begin
+  select event_id into v_event from profiles where id = p_player_id;
+  if v_event is null then raise exception 'Player not found'; end if;
+  if not is_organizer(v_event) then raise exception 'Not authorized'; end if;
+
+  select join_code into v_join_code from events where id = v_event;
+  v_name_slug := lower(regexp_replace(trim(p_new_name), '[^a-zA-Z0-9]+', '', 'g'));
+  v_code_slug := lower(regexp_replace(trim(v_join_code), '[^a-zA-Z0-9]+', '', 'g'));
+  v_new_email := v_name_slug || '.' || v_code_slug || '@players.rydercup.app';
+
+  update auth.users set email = v_new_email, updated_at = now() where id = p_player_id;
+  update profiles set display_name = trim(p_new_name) where id = p_player_id;
+end;
+$$;
+
 -- ---------- realtime ----------
 
 -- Broadcast live changes to every open device without a manual reload:
