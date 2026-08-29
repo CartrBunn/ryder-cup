@@ -25,7 +25,7 @@ export default function Draft() {
     const evt = profile.event_id;
     const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
       supabase.from('teams').select('*').eq('event_id', evt).order('name'),
-      supabase.from('profiles').select('*').eq('event_id', evt).order('display_name'),
+      supabase.from('profiles').select('*').eq('event_id', evt).order('handicap'),
       supabase.from('matches').select('id, side_a_players, side_b_players').eq('event_id', evt)
     ]);
     setTeams(t || []); setPlayers(p || []); setMatches(m || []);

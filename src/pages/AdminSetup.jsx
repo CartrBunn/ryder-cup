@@ -39,7 +39,7 @@ export default function AdminSetup() {
     const [{ data: e }, { data: t }, { data: p }, { data: c }, { data: r }] = await Promise.all([
       supabase.from('events').select('*').eq('id', evt).single(),
       supabase.from('teams').select('*').eq('event_id', evt).order('name'),
-      supabase.from('profiles').select('*').eq('event_id', evt),
+      supabase.from('profiles').select('*').eq('event_id', evt).order('handicap'),
       supabase.from('courses').select('*').eq('event_id', evt).maybeSingle(),
       supabase.from('rounds').select('*').eq('event_id', evt).order('seq')
     ]);

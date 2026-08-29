@@ -14,7 +14,7 @@ export default function Matchups() {
     const evt = profile.event_id;
     const [{ data: r }, { data: p }, { data: t }, { data: m }] = await Promise.all([
       supabase.from('rounds').select('*').eq('event_id', evt).order('seq'),
-      supabase.from('profiles').select('*').eq('event_id', evt),
+      supabase.from('profiles').select('*').eq('event_id', evt).order('handicap'),
       supabase.from('teams').select('*').eq('event_id', evt).order('name'),
       supabase.from('matches').select('*').eq('event_id', evt).order('seq')
     ]);
