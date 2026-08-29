@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import CoinToss from '../components/CoinToss';
 
 // Alternating snake draft: A, B, B, A, A, B, ...  Captains/organizer assign from the pool.
 export default function Draft() {
@@ -13,6 +14,7 @@ export default function Draft() {
   const [teamNames, setTeamNames] = useState({});
   const [pick, setPick] = useState(null);          // live "Team drafted Player" banner
   const [myHandicap, setMyHandicap] = useState('');
+  const [firstTeamIdx, setFirstTeamIdx] = useState(null);
 
   // Latest snapshots for the realtime handler, so it can diff without stale closures.
   const teamsRef = useRef([]);
@@ -74,7 +76,8 @@ export default function Draft() {
   const picksMade = players.filter(p => p.team_id).length;
   const order = ['A', 'B', 'B', 'A'];                 // snake pattern, repeats
   const nextSide = order[picksMade % order.length];
-  const nextTeam = teams[nextSide === 'A' ? 0 : 1];
+  const aIdx = firstTeamIdx ?? 0;                      // which team index is "A" (first picker)
+  const nextTeam = teams[nextSide === 'A' ? aIdx : 1 - aIdx];
 
   const isOrganizer = profile.role === 'organizer';
   const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
@@ -132,6 +135,7 @@ export default function Draft() {
       {err && <p className="err">{err}</p>}
       {teams.length < 2 ? <p className="muted">Create two teams in Setup first.</p> : (
         <>
+          <CoinToss teams={teams} firstTeamIdx={firstTeamIdx} onToss={setFirstTeamIdx} />
           {pool.length > 0
             ? <p className="muted">Next pick (snake order): <strong>{nextTeam?.name || '—'}</strong> — the other team is locked until they pick.</p>
             : <p className="muted">Draft complete.</p>}

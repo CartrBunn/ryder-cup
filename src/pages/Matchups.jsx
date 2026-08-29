@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import CoinToss from '../components/CoinToss';
 
 export default function Matchups() {
   const { profile } = useAuth();
@@ -23,6 +24,7 @@ export default function Matchups() {
 
   const isOrganizer = profile.role === 'organizer';
   const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
+  const [firstTeamIdx, setFirstTeamIdx] = useState(null);
 
   const size = fmt => fmt === 'singles' ? 1 : 2;
 
@@ -48,6 +50,7 @@ export default function Matchups() {
   return (
     <div className="stack">
       <h1>Set matchups</h1>
+      {teams.length >= 2 && <CoinToss teams={teams} firstTeamIdx={firstTeamIdx} onToss={setFirstTeamIdx} />}
       {teams.length < 2 && <p className="muted">Draft teams first.</p>}
       {rounds.map(r => {
         const roundMatches = matches.filter(m => m.round_id === r.id);
@@ -73,6 +76,7 @@ export default function Matchups() {
                 teamA={{ team: teams[0], players: avA }}
                 teamB={{ team: teams[1], players: avB }}
                 matchesMade={matchesMade}
+                firstTeamIdx={firstTeamIdx ?? 0}
                 isOrganizer={isOrganizer}
                 myTeamId={myTeamId}
                 onAdd={(a, b) => addMatch(r, a, b)}
@@ -95,13 +99,13 @@ function names(ids, players) {
 // Match 0 → team A picks first; match 1 → team B picks first; etc.
 // Phase 1 ("pick"): picking team chooses their player(s) and locks in.
 // Phase 2 ("respond"): other team sees who they face, picks their player(s), confirms.
-function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, isOrganizer, myTeamId, onAdd }) {
+function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, firstTeamIdx, isOrganizer, myTeamId, onAdd }) {
   const [phase, setPhase] = useState('pick');
   const [locked, setLocked] = useState([]);
   const [sel, setSel] = useState([]);
 
-  // Alternate which team picks first each match slot.
-  const pickerFirst = matchesMade % 2 === 0; // true = teamA picks first
+  // Alternate which team picks first each match slot, starting with the coin-toss winner.
+  const pickerFirst = (matchesMade + firstTeamIdx) % 2 === 0; // true = teamA picks first
   const picker    = pickerFirst ? teamA : teamB;
   const responder = pickerFirst ? teamB : teamA;
 
