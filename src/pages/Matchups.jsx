@@ -9,6 +9,7 @@ export default function Matchups() {
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [err, setErr] = useState('');
 
   async function load() {
     const evt = profile.event_id;
@@ -40,7 +41,9 @@ export default function Matchups() {
   const canFlip = isOrganizer || !!myTeamId;
 
   async function tossRound(roundId, teamId) {
-    await supabase.rpc('set_round_first_team', { p_round_id: roundId, p_team_id: teamId });
+    setErr('');
+    const { error } = await supabase.rpc('set_round_first_team', { p_round_id: roundId, p_team_id: teamId });
+    if (error) { setErr(error.message); return; }
     load();
   }
 
@@ -68,6 +71,7 @@ export default function Matchups() {
   return (
     <div className="stack">
       <h1>Set matchups</h1>
+      {err && <p className="err">{err}</p>}
       {teams.length < 2 && <p className="muted">Draft teams first.</p>}
       {rounds.map(r => {
         const roundMatches = matches.filter(m => m.round_id === r.id);
@@ -81,7 +85,7 @@ export default function Matchups() {
             <h3>{r.name} <span className="dim">· {r.format.replace('_', ' ')} · {size(r.format)} per side</span></h3>
             {teams.length >= 2 && (
               <CoinToss teams={teams} firstTeamId={r.first_team_id} locked={matchesMade > 0}
-                canFlip={canFlip} onToss={teamId => tossRound(r.id, teamId)} />
+                canFlip={canFlip} onToss={teamId => tossRound(r.id, teamId)} card={false} />
             )}
             <ul className="clean">
               {roundMatches.map(m => (

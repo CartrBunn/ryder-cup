@@ -3,7 +3,8 @@ import { useState } from 'react';
 // Stored, shared coin toss. The result (`firstTeamId`) lives in the DB so every device sees
 // the same winner; `locked` hides the button once picking has started. Only `canFlip` viewers
 // (organizer + captains) get the flip button — everyone else just watches the result.
-export default function CoinToss({ teams, firstTeamId, locked, canFlip, onToss }) {
+// card=true (default) wraps in a .card; card=false renders inline inside an existing card.
+export default function CoinToss({ teams, firstTeamId, locked, canFlip, onToss, card = true }) {
   const [flipping, setFlipping] = useState(false);
 
   async function toss() {
@@ -18,8 +19,12 @@ export default function CoinToss({ teams, firstTeamId, locked, canFlip, onToss }
   const winner = flipping ? null
     : (teams.find(t => t.id === firstTeamId) || (locked ? teams[0] : null));
 
+  const wrapStyle = card
+    ? { textAlign: 'center' }
+    : { textAlign: 'center', borderTop: '1px solid var(--hair)', paddingTop: 12, marginBottom: 12 };
+
   return (
-    <div className="card" style={{ textAlign: 'center' }}>
+    <div className={card ? 'card' : undefined} style={wrapStyle}>
       <style>{`@keyframes coinflip { 0%,100%{transform:rotateY(0)} 50%{transform:rotateY(90deg)} }`}</style>
       <div style={{
         fontSize: 52, lineHeight: 1, marginBottom: 8,
