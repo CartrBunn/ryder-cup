@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import CoinToss from '../components/CoinToss';
@@ -10,6 +10,8 @@ export default function Matchups() {
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [err, setErr] = useState('');
+  const [pendingPicks, setPendingPicks] = useState({}); // roundId → {teamId, players} broadcast state
+  const channelRef = useRef(null);
 
   async function load() {
     const evt = profile.event_id;
@@ -32,8 +34,17 @@ export default function Matchups() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds', filter: `event_id=eq.${evt}` }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `event_id=eq.${evt}` }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter: `event_id=eq.${evt}` }, load)
+      // Broadcast: push the intermediate "locked in" pick state to all open devices so the
+      // other team's screen transitions to the respond phase without a page reload.
+      .on('broadcast', { event: 'pick_locked' }, ({ payload }) => {
+        setPendingPicks(prev => ({ ...prev, [payload.round_id]: { teamId: payload.team_id, players: payload.players } }));
+      })
+      .on('broadcast', { event: 'pick_cleared' }, ({ payload }) => {
+        setPendingPicks(prev => ({ ...prev, [payload.round_id]: null }));
+      })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    channelRef.current = ch;
+    return () => { supabase.removeChannel(ch); channelRef.current = null; };
   }, [profile?.event_id]);
 
   const isOrganizer = profile.role === 'organizer';
@@ -58,12 +69,20 @@ export default function Matchups() {
     return players.filter(p => p.team_id === teamId && !used.has(p.id));
   };
 
+  function broadcastLockIn(roundId, teamId, players) {
+    channelRef.current?.send({ type: 'broadcast', event: 'pick_locked', payload: { round_id: roundId, team_id: teamId, players } });
+  }
+  function broadcastClearPick(roundId) {
+    channelRef.current?.send({ type: 'broadcast', event: 'pick_cleared', payload: { round_id: roundId } });
+  }
+
   async function addMatch(round, aIds, bIds) {
     const seq = matches.filter(m => m.round_id === round.id).length + 1;
     await supabase.from('matches').insert({
       round_id: round.id, event_id: profile.event_id, seq,
       side_a_players: aIds, side_b_players: bIds
     });
+    broadcastClearPick(round.id);
     load();
   }
   async function removeMatch(id) { await supabase.from('matches').delete().eq('id', id); load(); }
@@ -106,6 +125,9 @@ export default function Matchups() {
                 isOrganizer={isOrganizer}
                 myTeamId={myTeamId}
                 onAdd={(a, b) => addMatch(r, a, b)}
+                pendingPick={pendingPicks[r.id] || null}
+                onLockIn={(teamId, players) => broadcastLockIn(r.id, teamId, players)}
+                onClearPick={() => broadcastClearPick(r.id)}
               />}
             {roundDone && <p className="muted small">All players placed.</p>}
           </section>
@@ -125,7 +147,7 @@ function names(ids, players) {
 // Match 0 → team A picks first; match 1 → team B picks first; etc.
 // Phase 1 ("pick"): picking team chooses their player(s) and locks in.
 // Phase 2 ("respond"): other team sees who they face, picks their player(s), confirms.
-function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, firstTeamIdx, isOrganizer, myTeamId, onAdd }) {
+function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, firstTeamIdx, isOrganizer, myTeamId, onAdd, pendingPick, onLockIn, onClearPick }) {
   const [phase, setPhase] = useState('pick');
   const [locked, setLocked] = useState([]);
   const [sel, setSel] = useState([]);
@@ -134,6 +156,21 @@ function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, firstTeamIdx, isOrgan
   const pickerFirst = (matchesMade + firstTeamIdx) % 2 === 0; // true = teamA picks first
   const picker    = pickerFirst ? teamA : teamB;
   const responder = pickerFirst ? teamB : teamA;
+
+  // Sync local phase with the broadcast pick state so the other team's device
+  // automatically transitions to "respond" when the picker locks in, and back
+  // to "pick" if they cancel.
+  useEffect(() => {
+    if (pendingPick?.teamId === picker.team.id && phase === 'pick') {
+      setLocked(pendingPick.players);
+      setSel([]);
+      setPhase('respond');
+    } else if (!pendingPick && phase === 'respond') {
+      setLocked([]);
+      setSel([]);
+      setPhase('pick');
+    }
+  }, [pendingPick]);
 
   const canAct = side => isOrganizer || myTeamId === side.team.id;
 
@@ -176,9 +213,10 @@ function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, firstTeamIdx, isOrgan
               onToggle={id => toggle(id, needPicker)} />
           : <p className="muted small">Waiting for {picker.team.name} to pick…</p>}
         {canAct(picker) && sel.length === needPicker && (
-          <button className="primary" onClick={() => { setLocked(sel); setSel([]); setPhase('respond'); }}>
-            Lock in
-          </button>
+          <button className="primary" onClick={() => {
+            setLocked(sel); setSel([]); setPhase('respond');
+            onLockIn(picker.team.id, sel);
+          }}>Lock in</button>
         )}
       </div>
     );
@@ -204,7 +242,7 @@ function SnakeMatchBuilder({ n, teamA, teamB, matchesMade, firstTeamIdx, isOrgan
             onAdd(aIds, bIds);
           }}>Confirm match</button>
         )}
-        <button onClick={() => { setLocked([]); setSel([]); setPhase('pick'); }}>Back</button>
+        <button onClick={() => { setLocked([]); setSel([]); setPhase('pick'); onClearPick(); }}>Back</button>
       </div>
     </div>
   );
