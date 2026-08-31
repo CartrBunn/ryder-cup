@@ -13,9 +13,13 @@ create table if not exists events (
   scramble_low_pct int not null default 35,
   scramble_high_pct int not null default 15,
   locked boolean not null default false,        -- true once teams/matchups are set
+  draft_first_team_id uuid,                      -- coin-toss winner who picks first in the draft (teams.id)
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now()
 );
+-- For existing databases from before the coin toss was persisted (safe to re-run).
+-- Plain uuid, no FK: events is created before teams, so a cross-table FK here is awkward.
+alter table events add column if not exists draft_first_team_id uuid;
 
 create table if not exists courses (
   id uuid primary key default gen_random_uuid(),
@@ -48,8 +52,11 @@ create table if not exists rounds (
   seq int not null,                              -- 1,2,3
   name text not null,                            -- 'Scramble', 'Alternate Shot', 'Singles'
   format text not null,                          -- 'scramble' | 'alternate_shot' | 'singles'
-  course_id uuid references courses(id)
+  course_id uuid references courses(id),
+  first_team_id uuid references teams(id)        -- per-round coin-toss winner who picks first
 );
+-- For existing databases from before the per-round coin toss (safe to re-run).
+alter table rounds add column if not exists first_team_id uuid references teams(id);
 
 create table if not exists matches (
   id uuid primary key default gen_random_uuid(),
@@ -256,6 +263,43 @@ begin
 end;
 $$;
 
+-- Record the draft coin-toss winner (the team that picks first in the snake order).
+-- Organizer/captain only, and locked once the draft has started so the order can't change
+-- mid-draft. Uses a security-definer function so captains can write it (events is
+-- organizer-only under RLS).
+create or replace function set_draft_first_team(p_event uuid, p_team_id uuid)
+returns void language plpgsql security definer as $$
+begin
+  if not is_event_admin(p_event) then raise exception 'Not authorized'; end if;
+  if exists (select 1 from profiles where event_id = p_event and team_id is not null) then
+    raise exception 'Draft has already started — the toss is locked';
+  end if;
+  if not exists (select 1 from teams where id = p_team_id and event_id = p_event) then
+    raise exception 'Team is not in this event';
+  end if;
+  update events set draft_first_team_id = p_team_id where id = p_event;
+end;
+$$;
+
+-- Record a round's matchup coin-toss winner (who submits their lineup first that round).
+-- Organizer/captain only, and locked once that round has any match.
+create or replace function set_round_first_team(p_round_id uuid, p_team_id uuid)
+returns void language plpgsql security definer as $$
+declare v_event uuid;
+begin
+  select event_id into v_event from rounds where id = p_round_id;
+  if v_event is null then raise exception 'Round not found'; end if;
+  if not is_event_admin(v_event) then raise exception 'Not authorized'; end if;
+  if exists (select 1 from matches where round_id = p_round_id) then
+    raise exception 'Round has already started — the toss is locked';
+  end if;
+  if not exists (select 1 from teams where id = p_team_id and event_id = v_event) then
+    raise exception 'Team is not in this event';
+  end if;
+  update rounds set first_team_id = p_team_id where id = p_round_id;
+end;
+$$;
+
 -- Reset a player's PIN. A player's PIN is their Supabase auth password (derived in
 -- src/lib/playerAuth.js); the client passes the freshly derived password string and this
 -- re-hashes it. Organizer-only, scoped to the organizer's own event.
@@ -333,12 +377,14 @@ $$;
 --   profiles/teams  -> Draft picks and the alternating turn-lock
 --   hole_scores     -> co-scorers see each other's hole entries live
 --   matches         -> a submitted result / status update reflects everywhere
+--   events          -> the draft coin-toss winner reflects on every device
+--   rounds          -> the per-round matchup coin-toss winner reflects everywhere
 -- RLS still applies; the read_* policies already allow authenticated reads.
 -- Guarded so re-running this file is a no-op if the tables are already published.
 do $$
 declare tbl text;
 begin
-  foreach tbl in array array['profiles','teams','hole_scores','matches'] loop
+  foreach tbl in array array['profiles','teams','hole_scores','matches','events','rounds'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = tbl

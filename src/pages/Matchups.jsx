@@ -22,9 +22,27 @@ export default function Matchups() {
   }
   useEffect(() => { if (profile?.event_id) load(); }, [profile?.event_id]);
 
+  // Live sync so the per-round coin toss and each side's picks update on every open device.
+  useEffect(() => {
+    if (!profile?.event_id) return;
+    const evt = profile.event_id;
+    const ch = supabase.channel('matchups-' + evt)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `event_id=eq.${evt}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds', filter: `event_id=eq.${evt}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `event_id=eq.${evt}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter: `event_id=eq.${evt}` }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile?.event_id]);
+
   const isOrganizer = profile.role === 'organizer';
   const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
-  const [firstTeamIdx, setFirstTeamIdx] = useState(null);
+  const canFlip = isOrganizer || !!myTeamId;
+
+  async function tossRound(roundId, teamId) {
+    await supabase.rpc('set_round_first_team', { p_round_id: roundId, p_team_id: teamId });
+    load();
+  }
 
   const size = fmt => fmt === 'singles' ? 1 : 2;
 
@@ -50,7 +68,6 @@ export default function Matchups() {
   return (
     <div className="stack">
       <h1>Set matchups</h1>
-      {teams.length >= 2 && <CoinToss teams={teams} firstTeamIdx={firstTeamIdx} onToss={setFirstTeamIdx} />}
       {teams.length < 2 && <p className="muted">Draft teams first.</p>}
       {rounds.map(r => {
         const roundMatches = matches.filter(m => m.round_id === r.id);
@@ -58,9 +75,14 @@ export default function Matchups() {
         const avA = availablePlayers(teams[0]?.id, r.id);
         const avB = availablePlayers(teams[1]?.id, r.id);
         const roundDone = teams.length === 2 && avA.length === 0 && avB.length === 0;
+        const roundFirstIdx = Math.max(0, teams.findIndex(t => t.id === r.first_team_id));
         return (
           <section className="card" key={r.id}>
             <h3>{r.name} <span className="dim">· {r.format.replace('_', ' ')} · {size(r.format)} per side</span></h3>
+            {teams.length >= 2 && (
+              <CoinToss teams={teams} firstTeamId={r.first_team_id} locked={matchesMade > 0}
+                canFlip={canFlip} onToss={teamId => tossRound(r.id, teamId)} />
+            )}
             <ul className="clean">
               {roundMatches.map(m => (
                 <li key={m.id} className="row between">
@@ -76,7 +98,7 @@ export default function Matchups() {
                 teamA={{ team: teams[0], players: avA }}
                 teamB={{ team: teams[1], players: avB }}
                 matchesMade={matchesMade}
-                firstTeamIdx={firstTeamIdx ?? 0}
+                firstTeamIdx={roundFirstIdx}
                 isOrganizer={isOrganizer}
                 myTeamId={myTeamId}
                 onAdd={(a, b) => addMatch(r, a, b)}

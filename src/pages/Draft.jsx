@@ -14,7 +14,7 @@ export default function Draft() {
   const [teamNames, setTeamNames] = useState({});
   const [pick, setPick] = useState(null);          // live "Team drafted Player" banner
   const [myHandicap, setMyHandicap] = useState('');
-  const [firstTeamIdx, setFirstTeamIdx] = useState(null);
+  const [draftFirstTeamId, setDraftFirstTeamId] = useState(null);
 
   // Latest snapshots for the realtime handler, so it can diff without stale closures.
   const teamsRef = useRef([]);
@@ -25,12 +25,14 @@ export default function Draft() {
 
   async function load() {
     const evt = profile.event_id;
-    const [{ data: t }, { data: p }, { data: m }] = await Promise.all([
+    const [{ data: t }, { data: p }, { data: m }, { data: e }] = await Promise.all([
       supabase.from('teams').select('*').eq('event_id', evt).order('name'),
       supabase.from('profiles').select('*').eq('event_id', evt).order('handicap'),
-      supabase.from('matches').select('id, side_a_players, side_b_players').eq('event_id', evt)
+      supabase.from('matches').select('id, side_a_players, side_b_players').eq('event_id', evt),
+      supabase.from('events').select('id, draft_first_team_id').eq('id', evt).single()
     ]);
     setTeams(t || []); setPlayers(p || []); setMatches(m || []);
+    setDraftFirstTeamId(e?.draft_first_team_id || null);
     const me = (p || []).find(x => x.id === profile.id);
     if (me) setMyHandicap(String(me.handicap));
   }
@@ -68,6 +70,8 @@ export default function Draft() {
         { event: '*', schema: 'public', table: 'profiles', filter: `event_id=eq.${profile.event_id}` }, onProfile)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'teams', filter: `event_id=eq.${profile.event_id}` }, load)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'events', filter: `id=eq.${profile.event_id}` }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); clearTimeout(pickTimer.current); };
   }, [profile?.event_id]);
@@ -76,13 +80,15 @@ export default function Draft() {
   const picksMade = players.filter(p => p.team_id).length;
   const order = ['A', 'B', 'B', 'A'];                 // snake pattern, repeats
   const nextSide = order[picksMade % order.length];
-  const aIdx = firstTeamIdx ?? 0;                      // which team index is "A" (first picker)
+  const firstIdx = Math.max(0, teams.findIndex(t => t.id === draftFirstTeamId));
+  const aIdx = firstIdx;                               // which team index is "A" (first picker)
   const nextTeam = teams[nextSide === 'A' ? aIdx : 1 - aIdx];
 
   const isOrganizer = profile.role === 'organizer';
   const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
   const canPickFor = teamId => isOrganizer || teamId === myTeamId;
   const canManage = isOrganizer || !!myTeamId;   // organizers + captains act; everyone else watches
+  const draftLocked = players.some(p => p.team_id);   // once the first pick lands, lock the toss
   const inMatchup = playerId => matches.some(m =>
     m.side_a_players.includes(playerId) || m.side_b_players.includes(playerId));
 
@@ -103,6 +109,12 @@ export default function Draft() {
     const val = Number(myHandicap);
     if (isNaN(val)) return;
     const { error } = await supabase.from('profiles').update({ handicap: val }).eq('id', profile.id);
+    if (error) setErr(error.message);
+    else load();
+  }
+
+  async function tossDraft(teamId) {
+    const { error } = await supabase.rpc('set_draft_first_team', { p_event: profile.event_id, p_team_id: teamId });
     if (error) setErr(error.message);
     else load();
   }
@@ -135,7 +147,8 @@ export default function Draft() {
       {err && <p className="err">{err}</p>}
       {teams.length < 2 ? <p className="muted">Create two teams in Setup first.</p> : (
         <>
-          <CoinToss teams={teams} firstTeamIdx={firstTeamIdx} onToss={setFirstTeamIdx} />
+          <CoinToss teams={teams} firstTeamId={draftFirstTeamId} locked={draftLocked}
+            canFlip={canManage} onToss={tossDraft} />
           {pool.length > 0
             ? <p className="muted">Next pick (snake order): <strong>{nextTeam?.name || '—'}</strong> — the other team is locked until they pick.</p>
             : <p className="muted">Draft complete.</p>}
