@@ -53,10 +53,14 @@ create table if not exists rounds (
   name text not null,                            -- 'Scramble', 'Alternate Shot', 'Singles'
   format text not null,                          -- 'scramble' | 'alternate_shot' | 'singles'
   course_id uuid references courses(id),
-  first_team_id uuid references teams(id)        -- per-round coin-toss winner who picks first
+  first_team_id uuid references teams(id),       -- per-round coin-toss winner who picks first
+  pending_pick jsonb                             -- in-progress lock-in {team_id, players[]}; null when idle
 );
 -- For existing databases from before the per-round coin toss (safe to re-run).
 alter table rounds add column if not exists first_team_id uuid references teams(id);
+-- In-progress matchup pick, persisted so the responder's device and late joiners see it
+-- live via realtime (rounds is already published). Cleared when the match is confirmed.
+alter table rounds add column if not exists pending_pick jsonb;
 
 create table if not exists matches (
   id uuid primary key default gen_random_uuid(),
