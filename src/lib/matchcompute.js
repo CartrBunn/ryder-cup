@@ -9,6 +9,15 @@ function ruleFor(format, event) {
   return { type: 'weighted', low: event.scramble_low_pct, high: event.scramble_high_pct };
 }
 
+// Same combine shape but at full (100%) allowance — a raw measure of a side's skill,
+// independent of the event's stroke-allowance settings. Used only by the predictor,
+// so it still reads the handicaps even when allowances are dialed down to 0.
+function skillRuleFor(format) {
+  if (format === 'singles') return { type: 'each', pct: 100 };
+  if (format === 'alternate_shot') return { type: 'combined', pct: 100 };
+  return { type: 'weighted', low: 100, high: 100 };
+}
+
 // scores: array of hole_scores rows for this match. profilesById: { id: profile }.
 export function computeMatch({ match, round, course, event, profilesById, scores }) {
   const holes = course?.holes || [];
@@ -19,6 +28,12 @@ export function computeMatch({ match, round, course, event, profilesById, scores
   const bHcp = sideHandicap(hcpOf(match.side_b_players), rule);
   const sm = matchStrokeMap(aHcp, bHcp, holes);
 
+  // Raw skill gap (full handicaps, allowance-independent) drives the predictor's
+  // edge; the allowance-based strokes above only decide how much of it is neutralized.
+  const skillRule = skillRuleFor(round.format);
+  const skillDiff = sideHandicap(hcpOf(match.side_a_players), skillRule)
+    - sideHandicap(hcpOf(match.side_b_players), skillRule);
+
   const grossA = {}, grossB = {};
   (scores || []).forEach(s => { (s.side === 'A' ? grossA : grossB)[s.hole] = s.gross; });
 
@@ -26,7 +41,7 @@ export function computeMatch({ match, round, course, event, profilesById, scores
     startHole: match.start_hole });
 
   const winProb = winProbability({ up: state.up, played: state.played,
-    holesCount: holes.length, aHcp, bHcp, strokeMap: sm });
+    holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm });
 
   const teamAId = profilesById[match.side_a_players[0]]?.team_id || null;
   const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
