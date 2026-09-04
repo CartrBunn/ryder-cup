@@ -83,7 +83,10 @@ export default function Lobby() {
             return (
               <div className="match clickable" key={m.id} onClick={() => nav(`/match/${m.id}`)}>
                 <div className="mside" style={leftWon ? winStyle(teamA?.color) : undefined}>{nameOf(leftPlayers)}</div>
-                <div className="mstatus">{c?.state.status || '—'}</div>
+                <div className="mstatus">
+                  <span>{c?.state.status || '—'}</span>
+                  {m.start_hole && <span className="starthole">⛳ Hole {m.start_hole}</span>}
+                </div>
                 <div className="mside right" style={rightWon ? winStyle(teamB?.color) : undefined}>{nameOf(rightPlayers)}</div>
               </div>
             );
