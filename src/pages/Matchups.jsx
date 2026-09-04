@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import CoinToss from '../components/CoinToss';
+import { assignStartHoles } from '../lib/shotgun';
 
 export default function Matchups() {
   const { profile } = useAuth();
@@ -9,17 +10,19 @@ export default function Matchups() {
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [err, setErr] = useState('');
 
   async function load() {
     const evt = profile.event_id;
-    const [{ data: r }, { data: p }, { data: t }, { data: m }] = await Promise.all([
+    const [{ data: r }, { data: p }, { data: t }, { data: m }, { data: c }] = await Promise.all([
       supabase.from('rounds').select('*').eq('event_id', evt).order('seq'),
       supabase.from('profiles').select('*').eq('event_id', evt).order('handicap'),
       supabase.from('teams').select('*').eq('event_id', evt).order('name'),
-      supabase.from('matches').select('*').eq('event_id', evt).order('seq')
+      supabase.from('matches').select('*').eq('event_id', evt).order('seq'),
+      supabase.from('courses').select('*').eq('event_id', evt)
     ]);
-    setRounds(r || []); setPlayers(p || []); setTeams(t || []); setMatches(m || []);
+    setRounds(r || []); setPlayers(p || []); setTeams(t || []); setMatches(m || []); setCourses(c || []);
   }
   useEffect(() => {
     if (!profile?.event_id) return;
@@ -91,6 +94,36 @@ export default function Matchups() {
   }
   async function removeMatch(id) { await supabase.from('matches').delete().eq('id', id); load(); }
 
+  const holesForRound = round => courses.find(c => c.id === round.course_id)?.holes || [];
+
+  // Shotgun start: spread this round's matches to distinct, evenly-spaced holes, with faster
+  // (lower average-handicap) groups on the harder holes. Writes auto-broadcast via realtime.
+  async function autoAssignHoles(round, roundMatches) {
+    setErr('');
+    const holes = holesForRound(round);
+    if (!holes.length) { setErr('This round has no course/holes set — add them in Setup first.'); return; }
+    const hcpById = Object.fromEntries(players.map(p => [p.id, Number(p.handicap) || 0]));
+    const avgHcpOf = m => {
+      const ids = [...m.side_a_players, ...m.side_b_players];
+      return ids.length ? ids.reduce((s, id) => s + (hcpById[id] || 0), 0) / ids.length : 0;
+    };
+    const assign = assignStartHoles(roundMatches, holes, avgHcpOf);
+    const results = await Promise.all(
+      Object.entries(assign).map(([id, hole]) =>
+        supabase.from('matches').update({ start_hole: hole }).eq('id', id)));
+    const failed = results.find(res => res.error);
+    if (failed) { setErr(failed.error.message); return; }
+    load();
+  }
+
+  async function setStartHole(id, value) {
+    setErr('');
+    const { error } = await supabase.from('matches')
+      .update({ start_hole: value === '' ? null : Number(value) }).eq('id', id);
+    if (error) { setErr(error.message); return; }
+    load();
+  }
+
   return (
     <div className="stack">
       <h1>Set matchups</h1>
@@ -99,6 +132,7 @@ export default function Matchups() {
       {rounds.map(r => {
         const roundMatches = matches.filter(m => m.round_id === r.id);
         const matchesMade = roundMatches.length;
+        const roundHoles = holesForRound(r);
         const avA = availablePlayers(teams[0]?.id, r.id);
         const avB = availablePlayers(teams[1]?.id, r.id);
         const roundDone = teams.length === 2 && avA.length === 0 && avB.length === 0;
@@ -110,11 +144,30 @@ export default function Matchups() {
               <CoinToss teams={teams} firstTeamId={r.first_team_id} locked={matchesMade > 0}
                 canFlip={canFlip} onToss={teamId => tossRound(r.id, teamId)} card={false} />
             )}
+            {canFlip && matchesMade > 0 && roundHoles.length > 0 && (
+              <div className="row" style={{ marginBottom: '.5rem' }}>
+                <button onClick={() => autoAssignHoles(r, roundMatches)}>Shotgun start · auto-assign holes</button>
+                <span className="muted small">Spreads matches around the course; faster groups get the harder holes.</span>
+              </div>
+            )}
             <ul className="clean">
               {roundMatches.map(m => (
                 <li key={m.id} className="row between">
                   <span>{names(m.side_a_players, players)} vs {names(m.side_b_players, players)}</span>
-                  <button onClick={() => removeMatch(m.id)}>Remove</button>
+                  <span className="row">
+                    {canFlip && roundHoles.length > 0 ? (
+                      <label className="muted small row">
+                        Start
+                        <select value={m.start_hole ?? ''} onChange={e => setStartHole(m.id, e.target.value)}>
+                          <option value="">—</option>
+                          {roundHoles.map(h => <option key={h.number} value={h.number}>Hole {h.number}</option>)}
+                        </select>
+                      </label>
+                    ) : m.start_hole ? (
+                      <span className="muted small">Starts hole {m.start_hole}</span>
+                    ) : null}
+                    <button onClick={() => removeMatch(m.id)}>Remove</button>
+                  </span>
                 </li>
               ))}
             </ul>

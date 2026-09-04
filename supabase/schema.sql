@@ -71,8 +71,11 @@ create table if not exists matches (
   side_b_players uuid[] not null default '{}',
   status_text text,                              -- e.g. "A 2 up thru 7"  (denormalized for quick reads)
   final text,                                    -- 'A' | 'B' | 'half' | null
-  submitted boolean not null default false
+  submitted boolean not null default false,
+  start_hole int                                 -- shotgun start hole; null = start at hole 1 (normal)
 );
+-- For existing databases from before the shotgun start (safe to re-run).
+alter table matches add column if not exists start_hole int;
 
 create table if not exists hole_scores (
   id uuid primary key default gen_random_uuid(),

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { computeMatch } from '../lib/matchcompute';
+import { orderedHoles } from '../lib/scoring';
 
 export default function ScoreEntry() {
   const { id } = useParams();
@@ -67,7 +68,7 @@ export default function ScoreEntry() {
 
   if (!bundle) return <div className="center">Loading match…</div>;
   const { match, course } = bundle;
-  const holes = course.holes;
+  const holes = orderedHoles(course.holes, match.start_hole);
   const nameOf = ids => ids.map(i => profilesById[i]?.display_name || '—').join(' / ');
   const canEdit = profile.role === 'organizer'
     || match.side_a_players.includes(profile.id)
@@ -111,6 +112,7 @@ export default function ScoreEntry() {
       </div>
       <p className="muted small">Playing handicaps this format — A: {computed.aHcp}, B: {computed.bHcp}
         {computed.strokeMap.receiver && ` · ${computed.strokeMap.receiver} gets ${Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)`}</p>
+      {match.start_hole && <p className="muted small">Shotgun start · begins on hole {match.start_hole}</p>}
 
       <div className="table-scroll card">
         <table className="scorecard">
