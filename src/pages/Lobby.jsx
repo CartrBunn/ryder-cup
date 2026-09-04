@@ -51,7 +51,20 @@ export default function Lobby() {
   const [teamA, teamB] = teams;
   const aPts = teamA ? (totals[teamA.id] || 0) : 0;
   const bPts = teamB ? (totals[teamB.id] || 0) : 0;
-  const proj = tournamentWinProbability(matches, ctxById, teamA?.id);
+
+  // Planned match count for the whole tournament, including rounds whose matchups
+  // aren't built yet: every player is placed in every round, so a round holds
+  // (players per team) / (players per side) matches. Points not yet on the board
+  // stay in play so the cup isn't declared over before, say, the singles are set.
+  const teamSize = tid => profiles.filter(p => p.team_id === tid).length;
+  const perTeam = teamA && teamB ? Math.min(teamSize(teamA.id), teamSize(teamB.id)) : 0;
+  const perSide = fmt => (fmt === 'singles' ? 1 : 2);
+  const plannedForRound = r => (perTeam ? Math.floor(perTeam / perSide(r.format)) : 0);
+  const madeInRound = rid => matches.filter(m => m.round_id === rid).length;
+  const unplayed = rounds.reduce((s, r) => s + Math.max(0, plannedForRound(r) - madeInRound(r.id)), 0);
+  const plannedTotal = Math.max(matches.length, matches.length + unplayed);
+
+  const proj = tournamentWinProbability(matches, ctxById, teamA?.id, unplayed);
 
   const nameOf = ids => ids.map(id => profilesById[id]?.display_name || '—').join(' / ');
   const winStyle = color => color ? { background: color + '28' } : undefined;
@@ -70,7 +83,7 @@ export default function Lobby() {
 
   return (
     <div className="stack">
-      <TugBar a={aPts} b={bPts} total={matches.length} teamA={teamA} teamB={teamB}
+      <TugBar a={aPts} b={bPts} total={plannedTotal} teamA={teamA} teamB={teamB}
         pCupA={proj.pCupA} pCupB={proj.pCupB} pTie={proj.pTie}
         projA={proj.projA} projB={proj.projB} projMatches={proj.matches} />
 

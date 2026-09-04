@@ -63,14 +63,29 @@ export function tournamentTotals(matches, ctxById) {
 // Roll per-match win probabilities into a cup outcome for the leaderboard.
 // Everything is expressed for `refTeamId` (pass the left/Team-A team id); each match
 // is flipped so its side facing the reference team is scored consistently.
+// `unplayed` is how many matches the tournament will still add but hasn't created yet
+// (e.g. a singles round not built until rounds 1-2 finish) — each is folded in as a
+// 50/50 toss-up so those live points keep the cup from being declared prematurely.
 // Returns the chance the reference team (pCupA), a tie, and the other team (pCupB)
 // take the cup, plus projected final points for each side.
 // { pCupA, pTie, pCupB, projA, projB, matches }
-export function tournamentWinProbability(matches, ctxById, refTeamId) {
+export function tournamentWinProbability(matches, ctxById, refTeamId, unplayed = 0) {
   // Distribution of the reference team's total, in half-points so it stays integer.
   // Each match adds 2 (ref wins), 1 (halve), or 0 half-points.
   let dist = [1];   // 0 half-points, probability 1
   let counted = 0, projA = 0;
+
+  const convolve = (pWin, pHalf, pLoss) => {
+    const next = new Array(dist.length + 2).fill(0);
+    for (let i = 0; i < dist.length; i++) {
+      const p = dist[i];
+      if (!p) continue;
+      next[i + 2] += p * pWin;    // +2 half-points
+      next[i + 1] += p * pHalf;   // +1 half-point
+      next[i]     += p * pLoss;   // +0
+    }
+    dist = next;
+  };
 
   for (const m of matches) {
     const c = ctxById[m.id];
@@ -82,16 +97,14 @@ export function tournamentWinProbability(matches, ctxById, refTeamId) {
     const pLoss = refIsSideA ? c.winProb.pB : c.winProb.pA;
     counted += 1;
     projA += pWin * 1 + pHalf * 0.5;
+    convolve(pWin, pHalf, pLoss);
+  }
 
-    const next = new Array(dist.length + 2).fill(0);
-    for (let i = 0; i < dist.length; i++) {
-      const p = dist[i];
-      if (!p) continue;
-      next[i + 2] += p * pWin;    // +2 half-points
-      next[i + 1] += p * pHalf;   // +1 half-point
-      next[i]     += p * pLoss;   // +0
-    }
-    dist = next;
+  // Matches the tournament will still create — pure toss-ups (0.5 each side).
+  for (let k = 0; k < Math.max(0, unplayed); k++) {
+    counted += 1;
+    projA += 0.5;
+    convolve(0.5, 0, 0.5);
   }
 
   if (counted === 0) return { pCupA: 0, pTie: 0, pCupB: 0, projA: 0, projB: 0, matches: 0 };
