@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { computeMatch, tournamentTotals } from '../lib/matchcompute';
+import { computeMatch, tournamentTotals, tournamentWinProbability } from '../lib/matchcompute';
 import TugBar from '../components/TugBar';
 
 export default function Lobby() {
@@ -51,6 +51,7 @@ export default function Lobby() {
   const [teamA, teamB] = teams;
   const aPts = teamA ? (totals[teamA.id] || 0) : 0;
   const bPts = teamB ? (totals[teamB.id] || 0) : 0;
+  const proj = tournamentWinProbability(matches, ctxById, teamA?.id);
 
   const nameOf = ids => ids.map(id => profilesById[id]?.display_name || '—').join(' / ');
   const winStyle = color => color ? { background: color + '28' } : undefined;
@@ -69,7 +70,9 @@ export default function Lobby() {
 
   return (
     <div className="stack">
-      <TugBar a={aPts} b={bPts} total={matches.length} teamA={teamA} teamB={teamB} />
+      <TugBar a={aPts} b={bPts} total={matches.length} teamA={teamA} teamB={teamB}
+        pCupA={proj.pCupA} pCupB={proj.pCupB} pTie={proj.pTie}
+        projA={proj.projA} projB={proj.projB} projMatches={proj.matches} />
 
       {rounds.map(r => (
         <section key={r.id} className="round">

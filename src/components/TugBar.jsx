@@ -1,8 +1,11 @@
 // The "cup" tug-of-war bar: each team's color grows toward the centerline.
-export default function TugBar({ a = 0, b = 0, total = 0, teamA, teamB }) {
+export default function TugBar({ a = 0, b = 0, total = 0, teamA, teamB,
+  pCupA = 0, pCupB = 0, pTie = 0, projA = 0, projB = 0, projMatches = 0 }) {
   const aPct = total ? (a / total) * 100 : 0;
   const bPct = total ? (b / total) * 100 : 0;
   const clinch = total ? total / 2 + 0.5 : 0;
+  const nA = teamA?.name || 'Team A', nB = teamB?.name || 'Team B';
+  const tiePct = Math.round(pTie * 100);
   return (
     <div className="cup">
       <div className="totals">
@@ -16,6 +19,16 @@ export default function TugBar({ a = 0, b = 0, total = 0, teamA, teamB }) {
         </div>
       </div>
       <div className="clinchnote">{total ? `First to ${fmt(clinch)} of ${total}` : 'No matches yet'}</div>
+      {projMatches > 0 && (
+        <div className="projline">
+          <span>Projected {fmt(projA)} – {fmt(projB)}</span>
+          <span className="cupodds">
+            {nA} {Math.round(pCupA * 100)}%
+            {tiePct > 0 && <> · Tie {tiePct}%</>}
+            {' · '}{nB} {Math.round(pCupB * 100)}%
+          </span>
+        </div>
+      )}
       <div className="bar">
         <div className="fill" style={{ width: aPct + '%', background: teamA?.color || '#B23A2E' }} />
         <div className="fill gap" style={{ width: Math.max(0, 100 - aPct - bPct) + '%' }} />
