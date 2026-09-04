@@ -33,10 +33,22 @@ export function matchStrokeMap(sideAHcp, sideBHcp, holes) {
   };
 }
 
-// grossA / grossB: { holeNumber: strokes }. Scores are read in hole order; the first hole
+// Holes in play order for a match: hole numbers, but rotated so a shotgun `startHole` comes
+// first and the rest wrap around (…startHole, startHole+1, … , wrap to 1 … startHole-1).
+// null / not-found → natural order starting at the lowest number.
+export function orderedHoles(holes, startHole) {
+  const sorted = [...holes].sort((a, b) => a.number - b.number);
+  if (!startHole) return sorted;
+  const idx = sorted.findIndex(h => h.number === startHole);
+  if (idx <= 0) return sorted;
+  return [...sorted.slice(idx), ...sorted.slice(0, idx)];
+}
+
+// grossA / grossB: { holeNumber: strokes }. Scores are read in play order; the first hole
 // missing a score stops the tally (that's "thru"), so live entry works hole by hole.
-export function matchState({ holes, grossA, grossB, aStrokes, bStrokes }) {
-  const ordered = [...holes].sort((a, b) => a.number - b.number);
+// startHole rotates the play order for a shotgun start (default: begin at the lowest hole).
+export function matchState({ holes, grossA, grossB, aStrokes, bStrokes, startHole }) {
+  const ordered = orderedHoles(holes, startHole);
   const results = ordered.map(h => ({ hole: h.number, winner: null, netA: null, netB: null }));
   const resultAt = num => results.find(r => r.hole === num);
 

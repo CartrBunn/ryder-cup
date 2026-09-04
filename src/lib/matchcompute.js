@@ -21,7 +21,8 @@ export function computeMatch({ match, round, course, event, profilesById, scores
   const grossA = {}, grossB = {};
   (scores || []).forEach(s => { (s.side === 'A' ? grossA : grossB)[s.hole] = s.gross; });
 
-  const state = matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes });
+  const state = matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
+    startHole: match.start_hole });
 
   const teamAId = profilesById[match.side_a_players[0]]?.team_id || null;
   const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
