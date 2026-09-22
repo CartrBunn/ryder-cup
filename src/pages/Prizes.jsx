@@ -108,7 +108,7 @@ export default function Prizes() {
   return (
     <div className="stack">
       <div className="row between" style={{ alignItems: 'baseline' }}>
-        <h1>Prizes</h1>
+        <h1>Individual Leaderboard</h1>
         {hasTies && (
           <button onClick={shuffleAll} style={{ flexShrink: 0 }}>🎲 Shuffle ties</button>
         )}
