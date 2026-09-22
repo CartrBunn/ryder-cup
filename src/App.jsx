@@ -11,6 +11,7 @@ import Matchups from './pages/Matchups';
 import ScoreEntry from './pages/ScoreEntry';
 import StartEvent from './pages/StartEvent';
 import ResetPassword from './pages/ResetPassword';
+import Prizes from './pages/Prizes';
 
 function Nav() {
   const { session, profile } = useAuth();
@@ -32,6 +33,7 @@ function Nav() {
       <div className={open ? 'navlinks open' : 'navlinks'}>
         {profile && <Link to="/" onClick={close}>Leaderboard</Link>}
         {profile && <Link to="/draft" onClick={close}>Draft</Link>}
+        {profile && <Link to="/prizes" onClick={close}>Prizes</Link>}
         {isAdmin && <Link to="/matchups" onClick={close}>Matchups</Link>}
         {profile?.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
       </div>
@@ -71,6 +73,7 @@ export default function App() {
           <Route path="/" element={<Protected><Lobby /></Protected>} />
           <Route path="/match/:id" element={<Protected><ScoreEntry /></Protected>} />
           <Route path="/draft" element={<Protected><Draft /></Protected>} />
+          <Route path="/prizes" element={<Protected><Prizes /></Protected>} />
           <Route path="/matchups" element={<Protected need={['organizer','captain']}><Matchups /></Protected>} />
           <Route path="/admin" element={<Protected need={['organizer']}><AdminSetup /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
