@@ -33,7 +33,7 @@ function Nav() {
       <div className={open ? 'navlinks open' : 'navlinks'}>
         {profile && <Link to="/" onClick={close}>Leaderboard</Link>}
         {profile && <Link to="/draft" onClick={close}>Draft</Link>}
-        {profile && <Link to="/prizes" onClick={close}>Prizes</Link>}
+        {profile && <Link to="/prizes" onClick={close}>Individual Leaderboard</Link>}
         {isAdmin && <Link to="/matchups" onClick={close}>Matchups</Link>}
         {profile?.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
       </div>
