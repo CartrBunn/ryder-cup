@@ -11,7 +11,7 @@ function shuffle(arr) {
   return a;
 }
 
-function recordKey(r) { return `${r.w}-${r.h}-${r.l}`; }
+function recordKey(r) { return String(recordPts(r)); }
 function recordPts(r) { return r.w + r.h * 0.5; }
 
 export default function Prizes() {
@@ -66,8 +66,8 @@ export default function Prizes() {
       .sort((a, b) => {
         const pa = recordPts(a.record), pb = recordPts(b.record);
         if (pb !== pa) return pb - pa;
-        if (b.record.w !== a.record.w) return b.record.w - a.record.w;
-        return a.record.l - b.record.l;
+        if (pa === 0) return a.display_name.localeCompare(b.display_name);
+        return 0;
       });
 
     const result = [];
@@ -111,7 +111,7 @@ export default function Prizes() {
       </div>
 
       {displayGroups.map(g => {
-        const played = g.record.w + g.record.h + g.record.l;
+        const pts = recordPts(g.record);
         return (
           <section className="card" key={g.key}>
             <div className="row between" style={{ marginBottom: 12 }}>
@@ -119,16 +119,9 @@ export default function Prizes() {
                 <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 700 }}>
                   #{g.rank}
                 </span>
-                <div>
-                  <span style={{ fontWeight: 800, fontSize: 15 }}>
-                    {g.record.w}W – {g.record.h}H – {g.record.l}L
-                  </span>
-                  {played > 0 && (
-                    <span className="muted small" style={{ marginLeft: 8 }}>
-                      {recordPts(g.record)} pts
-                    </span>
-                  )}
-                </div>
+                <span style={{ fontWeight: 800, fontSize: 15 }}>
+                  {pts} {pts === 1 ? 'pt' : 'pts'}
+                </span>
               </div>
               {g.players.length > 1 && (
                 <span className="muted small">{g.players.length} tied</span>
