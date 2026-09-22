@@ -101,6 +101,10 @@ export default function Prizes() {
 
   if (!data) return <div className="center">Loading prizes…</div>;
 
+  const rows = displayGroups.flatMap(g =>
+    g.players.map(p => ({ player: p, rank: g.rank, pts: recordPts(g.record) }))
+  );
+
   return (
     <div className="stack">
       <div className="row between" style={{ alignItems: 'baseline' }}>
@@ -110,46 +114,31 @@ export default function Prizes() {
         )}
       </div>
 
-      {displayGroups.map(g => {
-        const pts = recordPts(g.record);
-        return (
-          <section className="card" key={g.key}>
-            <div className="row between" style={{ marginBottom: 12 }}>
-              <div className="row" style={{ gap: 10 }}>
-                <span style={{ fontSize: 16, lineHeight: 1, fontWeight: 700 }}>
-                  #{g.rank}
-                </span>
-                <span style={{ fontWeight: 800, fontSize: 15 }}>
-                  {pts} {pts === 1 ? 'pt' : 'pts'}
-                </span>
-              </div>
-              {g.players.length > 1 && (
-                <span className="muted small">{g.players.length} tied</span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {g.players.map((p, idx) => (
-                <div key={p.id} className="row"
-                  style={{ padding: '9px 12px', background: '#f5f5fa', borderRadius: 10, gap: 10 }}>
-                  {g.players.length > 1 && (
-                    <span className="muted small" style={{ width: 18, textAlign: 'right', flexShrink: 0 }}>
-                      {idx + 1}.
-                    </span>
-                  )}
-                  {p.team?.color && (
-                    <span className="dot" style={{ background: p.team.color, flexShrink: 0 }} />
-                  )}
-                  <span style={{ fontWeight: 700, flex: 1 }}>{p.display_name}</span>
-                  {p.team && <span className="muted small">{p.team.name}</span>}
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
-
-      {groups.length === 0 && <p className="muted">No results yet.</p>}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {rows.map(({ player: p, rank, pts }, idx) => (
+          <div key={p.id} className="row"
+            style={{
+              padding: '11px 16px',
+              gap: 12,
+              borderBottom: idx < rows.length - 1 ? '1px solid var(--hair)' : 'none',
+            }}>
+            <span style={{ fontWeight: 700, width: 36, flexShrink: 0, color: 'var(--muted)', fontSize: 13 }}>
+              #{rank}
+            </span>
+            {p.team?.color && (
+              <span className="dot" style={{ background: p.team.color, flexShrink: 0 }} />
+            )}
+            <span style={{ fontWeight: 700, flex: 1 }}>{p.display_name}</span>
+            <span className="muted small">{p.team?.name}</span>
+            {pts > 0 && (
+              <span style={{ fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                {pts} {pts === 1 ? 'pt' : 'pts'}
+              </span>
+            )}
+          </div>
+        ))}
+        {rows.length === 0 && <p className="muted" style={{ padding: 16 }}>No players yet.</p>}
+      </div>
     </div>
   );
 }
