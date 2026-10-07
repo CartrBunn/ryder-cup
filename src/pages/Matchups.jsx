@@ -170,20 +170,18 @@ export default function Matchups() {
               <CoinToss teams={teams} firstTeamId={r.first_team_id} locked={matchesMade > 0}
                 canFlip={canFlip} onToss={teamId => tossRound(r.id, teamId)} card={false} />
             )}
-            {canFlip && matchesMade > 0 && roundHoles.length > 0 && (
-              <div className="row" style={{ marginBottom: '.5rem' }}>
-                <button onClick={() => autoAssignHoles(r, roundMatches)}>Shotgun start · auto-assign holes</button>
-                <span className="muted small">Spreads matches around the course; faster groups get the harder holes.</span>
-              </div>
-            )}
-            {isOrganizer && matchesMade > 0 && (swapRound === r.id ? (() => {
+            {matchesMade > 0 && (
+              <div className="row" style={{ marginBottom: '.5rem', flexWrap: 'wrap' }}>
+                {canFlip && roundHoles.length > 0 &&
+                  <button onClick={() => autoAssignHoles(r, roundMatches)}>Auto Assign Holes</button>}
+                {isOrganizer && (swapRound === r.id ? (() => {
               const matchIdx = id => roundMatches.findIndex(m => m.side_a_players.includes(id) || m.side_b_players.includes(id));
               const playerA = players.find(p => p.id === swapA);
               const optsB = !playerA ? [] : players.filter(p =>
                 p.team_id === playerA.team_id && p.id !== swapA && matchIdx(p.id) !== matchIdx(swapA));
               const label = p => `${p.display_name} (${matchIdx(p.id) >= 0 ? 'Match ' + (matchIdx(p.id) + 1) : 'unplaced'})`;
               return (
-                <div className="row" style={{ marginBottom: '.5rem' }}>
+                <>
                   <select value={swapA} onChange={e => { setSwapA(e.target.value); setSwapB(''); }}>
                     <option value="">— player —</option>
                     {players.filter(p => matchIdx(p.id) >= 0).map(p => <option key={p.id} value={p.id}>{label(p)}</option>)}
@@ -195,13 +193,13 @@ export default function Matchups() {
                   </select>
                   <button className="primary" disabled={!swapA || !swapB} onClick={() => swapInRound(r.id)}>Swap</button>
                   <button onClick={() => { setSwapRound(null); setSwapA(''); setSwapB(''); }}>Cancel</button>
-                </div>
+                </>
               );
             })() : (
-              <div className="row" style={{ marginBottom: '.5rem' }}>
-                <button onClick={() => { setSwapRound(r.id); setSwapA(''); setSwapB(''); }}>Swap players</button>
-              </div>
+              <button onClick={() => { setSwapRound(r.id); setSwapA(''); setSwapB(''); }}>Swap players</button>
             ))}
+              </div>
+            )}
             <ul className="clean">
               {roundMatches.map(m => (
                 <li key={m.id} className="row between">
