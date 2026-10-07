@@ -47,7 +47,7 @@ export function orderedHoles(holes, startHole) {
 // grossA / grossB: { holeNumber: strokes }. Scores are read in play order; the first hole
 // missing a score stops the tally (that's "thru"), so live entry works hole by hole.
 // startHole rotates the play order for a shotgun start (default: begin at the lowest hole).
-export function matchState({ holes, grossA, grossB, aStrokes, bStrokes, startHole }) {
+export function matchState({ holes, grossA, grossB, aStrokes, bStrokes, startHole, nameA = 'A', nameB = 'B' }) {
   const ordered = orderedHoles(holes, startHole);
   const results = ordered.map(h => ({ hole: h.number, winner: null, netA: null, netB: null }));
   const resultAt = num => results.find(r => r.hole === num);
@@ -79,7 +79,7 @@ export function matchState({ holes, grossA, grossB, aStrokes, bStrokes, startHol
 
   const wentToEnd = played === holes.length;
   const decided = closed || wentToEnd;
-  const who = up > 0 ? 'A' : 'B';
+  const who = up > 0 ? nameA : nameB;
 
   let status;
   if (played === 0) status = 'Not started';

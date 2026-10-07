@@ -21,11 +21,12 @@ export default function ScoreEntry() {
       const { data: event } = await supabase.from('events').select('*').eq('id', match.event_id).single();
       const ids = [...match.side_a_players, ...match.side_b_players];
       const { data: profiles } = await supabase.from('profiles').select('*').in('id', ids);
+      const { data: teams } = await supabase.from('teams').select('*').eq('event_id', match.event_id);
       const { data: scores } = await supabase.from('hole_scores').select('*').eq('match_id', id);
       const g = { A: {}, B: {} };
       (scores || []).forEach(s => { g[s.side][s.hole] = s.gross; });
       setGross(g);
-      setBundle({ match, round, course, event, profiles: profiles || [] });
+      setBundle({ match, round, course, event, profiles: profiles || [], teams: teams || [] });
     })();
   }, [id]);
 
@@ -63,13 +64,16 @@ export default function ScoreEntry() {
     ['A', 'B'].forEach(side => Object.entries(gross[side]).forEach(([hole, val]) =>
       scores.push({ side, hole: Number(hole), gross: Number(val) })));
     return computeMatch({ match: bundle.match, round: bundle.round, course: bundle.course,
-      event: bundle.event, profilesById, scores });
+      event: bundle.event, profilesById, scores,
+      teamsById: Object.fromEntries(bundle.teams.map(t => [t.id, t])) });
   }, [bundle, gross, profilesById]);
 
   if (!bundle) return <div className="center">Loading match…</div>;
   const { match, course } = bundle;
   const holes = orderedHoles(course.holes, match.start_hole);
   const nameOf = ids => ids.map(i => profilesById[i]?.display_name || '—').join(' / ');
+  const nameA = bundle.teams.find(t => t.id === computed.teamAId)?.name || 'A';
+  const nameB = bundle.teams.find(t => t.id === computed.teamBId)?.name || 'B';
   const canEdit = profile.role === 'organizer'
     || match.side_a_players.includes(profile.id)
     || match.side_b_players.includes(profile.id);
@@ -110,14 +114,14 @@ export default function ScoreEntry() {
         <div className="live">{computed.state.status}</div>
         <div className="right">{nameOf(match.side_b_players)}</div>
       </div>
-      <p className="muted small">Playing handicaps this format — A: {computed.aHcp}, B: {computed.bHcp}
-        {computed.strokeMap.receiver && ` · ${computed.strokeMap.receiver} gets ${Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)`}</p>
+      <p className="muted small">Playing handicaps this format — {nameA}: {computed.aHcp}, {nameB}: {computed.bHcp}
+        {computed.strokeMap.receiver && ` · ${computed.strokeMap.receiver === 'A' ? nameA : nameB} gets ${Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)`}</p>
       {match.start_hole && <p className="muted small">Shotgun start · begins on hole {match.start_hole}</p>}
 
       <div className="table-scroll card">
         <table className="scorecard">
           <thead>
-            <tr><th>Hole</th><th>Par</th><th>SI</th><th>A</th><th>B</th><th>Result</th></tr>
+            <tr><th>Hole</th><th>Par</th><th>SI</th><th>{nameA}</th><th>{nameB}</th><th>Result</th></tr>
           </thead>
           <tbody>
             {holes.map(h => {

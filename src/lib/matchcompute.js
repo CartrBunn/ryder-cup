@@ -19,7 +19,7 @@ function skillRuleFor(format) {
 }
 
 // scores: array of hole_scores rows for this match. profilesById: { id: profile }.
-export function computeMatch({ match, round, course, event, profilesById, scores }) {
+export function computeMatch({ match, round, course, event, profilesById, scores, teamsById = {} }) {
   const holes = course?.holes || [];
   const rule = ruleFor(round.format, event);
 
@@ -37,14 +37,16 @@ export function computeMatch({ match, round, course, event, profilesById, scores
   const grossA = {}, grossB = {};
   (scores || []).forEach(s => { (s.side === 'A' ? grossA : grossB)[s.hole] = s.gross; });
 
+  const teamAId = profilesById[match.side_a_players[0]]?.team_id || null;
+  const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
+
   const state = matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
-    startHole: match.start_hole });
+    startHole: match.start_hole,
+    nameA: teamsById[teamAId]?.name || 'A', nameB: teamsById[teamBId]?.name || 'B' });
 
   const winProb = winProbability({ up: state.up, played: state.played,
     holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm });
 
-  const teamAId = profilesById[match.side_a_players[0]]?.team_id || null;
-  const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
   return { state, strokeMap: sm, aHcp, bHcp, winProb, teamAId, teamBId };
 }
 

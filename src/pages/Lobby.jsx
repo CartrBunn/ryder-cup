@@ -37,6 +37,7 @@ export default function Lobby() {
 
   const { event, teams, profiles, courses, rounds, matches, scores } = data;
   const profilesById = Object.fromEntries(profiles.map(p => [p.id, p]));
+  const teamsById = Object.fromEntries(teams.map(t => [t.id, t]));
   const courseById = Object.fromEntries(courses.map(c => [c.id, c]));
   const roundById = Object.fromEntries(rounds.map(r => [r.id, r]));
 
@@ -44,7 +45,7 @@ export default function Lobby() {
   for (const m of matches) {
     const round = roundById[m.round_id];
     const course = courseById[round?.course_id];
-    ctxById[m.id] = computeMatch({ match: m, round, course, event, profilesById,
+    ctxById[m.id] = computeMatch({ match: m, round, course, event, profilesById, teamsById,
       scores: scores.filter(s => s.match_id === m.id) });
   }
   const totals = tournamentTotals(matches, ctxById);
