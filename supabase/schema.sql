@@ -274,7 +274,7 @@ $$;
 -- The substitute takes over the outgoing player's team, captaincy, and every matchup slot
 -- (including an in-progress pick), so the schedule and any entered scores stay intact.
 -- The outgoing player is left in the event with no team; remove them separately if wanted.
--- Organizer/captain only.
+-- Organizer only.
 create or replace function swap_player(p_out uuid, p_in uuid)
 returns void language plpgsql security definer as $$
 declare
@@ -287,7 +287,7 @@ begin
   select event_id into v_in_event from profiles where id = p_in;
   if v_event is null or v_in_event is null then raise exception 'Player not found'; end if;
   if v_event <> v_in_event then raise exception 'Players are in different events'; end if;
-  if not is_event_admin(v_event) then raise exception 'Not authorized'; end if;
+  if not is_organizer(v_event) then raise exception 'Not authorized'; end if;
   if p_out = p_in then raise exception 'Pick a different player'; end if;
   if exists (select 1 from profiles where id = p_in and team_id is not null) then
     raise exception 'Substitute is already on a team';

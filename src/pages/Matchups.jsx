@@ -175,7 +175,7 @@ export default function Matchups() {
                 <span className="muted small">Spreads matches around the course; faster groups get the harder holes.</span>
               </div>
             )}
-            {canFlip && matchesMade > 0 && (swapRound === r.id ? (() => {
+            {isOrganizer && matchesMade > 0 && (swapRound === r.id ? (() => {
               const matchIdx = id => roundMatches.findIndex(m => m.side_a_players.includes(id) || m.side_b_players.includes(id));
               const playerA = players.find(p => p.id === swapA);
               const optsB = !playerA ? [] : players.filter(p =>
