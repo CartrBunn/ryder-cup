@@ -270,6 +270,55 @@ begin
 end;
 $$;
 
+-- Swap a player out for a substitute who has no team yet (e.g. someone dropped out).
+-- The substitute takes over the outgoing player's team, captaincy, and every matchup slot
+-- (including an in-progress pick), so the schedule and any entered scores stay intact.
+-- The outgoing player is left in the event with no team; remove them separately if wanted.
+-- Organizer/captain only.
+create or replace function swap_player(p_out uuid, p_in uuid)
+returns void language plpgsql security definer as $$
+declare
+  v_event uuid;
+  v_in_event uuid;
+  v_team uuid;
+  v_role text;
+begin
+  select event_id, team_id, role into v_event, v_team, v_role from profiles where id = p_out;
+  select event_id into v_in_event from profiles where id = p_in;
+  if v_event is null or v_in_event is null then raise exception 'Player not found'; end if;
+  if v_event <> v_in_event then raise exception 'Players are in different events'; end if;
+  if not is_event_admin(v_event) then raise exception 'Not authorized'; end if;
+  if p_out = p_in then raise exception 'Pick a different player'; end if;
+  if exists (select 1 from profiles where id = p_in and team_id is not null) then
+    raise exception 'Substitute is already on a team';
+  end if;
+
+  update matches set
+    side_a_players = array_replace(side_a_players, p_out, p_in),
+    side_b_players = array_replace(side_b_players, p_out, p_in)
+  where event_id = v_event
+    and (p_out = any(side_a_players) or p_out = any(side_b_players));
+
+  update rounds set pending_pick = jsonb_set(
+    pending_pick, '{players}',
+    (select coalesce(jsonb_agg(case when e #>> '{}' = p_out::text then to_jsonb(p_in::text) else e end), '[]'::jsonb)
+       from jsonb_array_elements(pending_pick->'players') e)
+  )
+  where event_id = v_event
+    and pending_pick is not null and jsonb_typeof(pending_pick->'players') = 'array';
+
+  update hole_scores set entered_by = p_in where entered_by = p_out;
+
+  update profiles set team_id = v_team where id = p_in;
+  if v_role = 'captain' then
+    update teams set captain_id = p_in where captain_id = p_out;
+    update profiles set role = 'captain' where id = p_in and role = 'player';
+    update profiles set role = 'player' where id = p_out;
+  end if;
+  update profiles set team_id = null where id = p_out;
+end;
+$$;
+
 -- Record the draft coin-toss winner (the team that picks first in the snake order).
 -- Organizer/captain only, and locked once the draft has started so the order can't change
 -- mid-draft. Uses a security-definer function so captains can write it (events is

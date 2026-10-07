@@ -30,6 +30,8 @@ export default function AdminSetup() {
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [resetId, setResetId] = useState(null);
   const [resetPin, setResetPin] = useState('');
+  const [swapId, setSwapId] = useState(null);
+  const [swapIn, setSwapIn] = useState('');
   const [handicaps, setHandicaps] = useState({});
   const [names, setNames] = useState({});
 
@@ -140,6 +142,16 @@ export default function AdminSetup() {
     const { error } = await supabase.rpc('remove_player', { p_player_id: p.id });
     if (error) { flash(error.message); return; }
     flash('Player removed');
+    load();
+  }
+  async function swapPlayer(p) {
+    const sub = players.find(x => x.id === swapIn);
+    if (!sub) return flash('Pick a substitute');
+    if (!window.confirm(`Replace ${p.display_name} with ${sub.display_name}? They take over the team and all matchups.`)) return;
+    const { error } = await supabase.rpc('swap_player', { p_out: p.id, p_in: sub.id });
+    if (error) { flash(error.message); return; }
+    flash(`${sub.display_name} is in for ${p.display_name}`);
+    setSwapId(null); setSwapIn('');
     load();
   }
   async function setOrganizerRole(p, makeOrganizer) {
@@ -277,7 +289,17 @@ export default function AdminSetup() {
                       onBlur={() => saveHandicap(p.id)}
                     />) <span className="dim">· {p.role}</span>
                   </span>
-                  {resetId === p.id ? (
+                  {swapId === p.id ? (
+                    <span className="row">
+                      <select value={swapIn} onChange={e => setSwapIn(e.target.value)}>
+                        <option value="">— substitute —</option>
+                        {players.filter(x => x.id !== p.id && !x.team_id).map(x =>
+                          <option key={x.id} value={x.id}>{x.display_name} ({x.handicap})</option>)}
+                      </select>
+                      <button className="primary" onClick={() => swapPlayer(p)}>Swap</button>
+                      <button onClick={() => { setSwapId(null); setSwapIn(''); }}>Cancel</button>
+                    </span>
+                  ) : resetId === p.id ? (
                     <span className="row">
                       <input inputMode="numeric" maxLength={4} placeholder="New PIN" autoFocus
                         value={resetPin} onChange={e => setResetPin(e.target.value.replace(/\D/g, ''))}
@@ -291,6 +313,7 @@ export default function AdminSetup() {
                         ? <button onClick={() => setOrganizerRole(p, true)}>Make organizer</button>
                         : p.id !== profile.id && <button onClick={() => setOrganizerRole(p, false)}>Remove organizer</button>
                       }
+                      {p.team_id && <button onClick={() => { setSwapId(p.id); setSwapIn(''); }}>Swap out</button>}
                       <button onClick={() => { setResetId(p.id); setResetPin(''); }}>Reset PIN</button>
                       <button onClick={() => removePlayer(p)}>✕ Remove</button>
                     </span>
@@ -309,6 +332,7 @@ export default function AdminSetup() {
             {addingPlayer ? 'Adding…' : 'Add player'}
           </button>
         </div>
+        <p className="muted small">To replace someone who can't make it: add the substitute above, then tap "Swap out" on the player leaving. The substitute takes their team and matchups.</p>
         <p className="muted small">Share the PIN with the player — they log in with the join code, their name, and this PIN.</p>
       </section>
 
