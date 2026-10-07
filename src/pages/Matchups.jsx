@@ -203,7 +203,7 @@ export default function Matchups() {
             <ul className="clean">
               {roundMatches.map(m => (
                 <li key={m.id} className="row between">
-                  <span>{names(m.side_a_players, players)} vs {names(m.side_b_players, players)}</span>
+                  <span className="pname">{names(m.side_a_players, players)} vs {names(m.side_b_players, players)}</span>
                   <span className="row">
                     {canFlip && roundHoles.length > 0 ? (
                       <label className="muted small row">
@@ -216,7 +216,7 @@ export default function Matchups() {
                     ) : m.start_hole ? (
                       <span className="muted small">Starts hole {m.start_hole}</span>
                     ) : null}
-                    <button onClick={() => removeMatch(m.id)}>Remove</button>
+                    <button className="mini danger" onClick={() => removeMatch(m.id)}>Remove</button>
                   </span>
                 </li>
               ))}

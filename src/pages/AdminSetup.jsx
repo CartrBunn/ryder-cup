@@ -274,8 +274,8 @@ export default function AdminSetup() {
           ? <p className="muted">No one has joined yet.</p>
           : <ul className="clean">
               {players.map(p => (
-                <li key={p.id} className="row between">
-                  <span>
+                <li key={p.id} className="row between playerrow">
+                  <span className="pname">
                     <input
                       className="name-edit"
                       value={names[p.id] ?? p.display_name}
@@ -287,7 +287,7 @@ export default function AdminSetup() {
                       value={handicaps[p.id] ?? p.handicap}
                       onChange={e => setHandicaps(h => ({ ...h, [p.id]: e.target.value }))}
                       onBlur={() => saveHandicap(p.id)}
-                    />) <span className="dim">· {p.role}</span>
+                    />) <span className="tag">{p.role}</span>
                   </span>
                   {swapId === p.id ? (
                     <span className="row">
@@ -310,12 +310,12 @@ export default function AdminSetup() {
                   ) : (
                     <span className="row">
                       {p.role !== 'organizer'
-                        ? <button onClick={() => setOrganizerRole(p, true)}>Make organizer</button>
-                        : p.id !== profile.id && <button onClick={() => setOrganizerRole(p, false)}>Remove organizer</button>
+                        ? <button className="mini" onClick={() => setOrganizerRole(p, true)}>Make organizer</button>
+                        : p.id !== profile.id && <button className="mini" onClick={() => setOrganizerRole(p, false)}>Remove organizer</button>
                       }
-                      {p.team_id && <button onClick={() => { setSwapId(p.id); setSwapIn(''); }}>Swap out</button>}
-                      <button onClick={() => { setResetId(p.id); setResetPin(''); }}>Reset PIN</button>
-                      <button onClick={() => removePlayer(p)}>✕ Remove</button>
+                      {p.team_id && <button className="mini" onClick={() => { setSwapId(p.id); setSwapIn(''); }}>Swap out</button>}
+                      <button className="mini" onClick={() => { setResetId(p.id); setResetPin(''); }}>Reset PIN</button>
+                      <button className="mini danger" onClick={() => removePlayer(p)}>Remove</button>
                     </span>
                   )}
                 </li>

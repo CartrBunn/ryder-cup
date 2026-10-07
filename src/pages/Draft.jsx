@@ -166,7 +166,7 @@ export default function Draft() {
                 <ul className="clean">
                   {players.filter(p => p.team_id === t.id).map(p => (
                     <li key={p.id} className="row between">
-                      <span>{p.display_name} (<span className="dim">
+                      <span className="pname">{p.display_name} (<span className="dim">
                         {p.id === profile.id
                           ? <input type="number" step="0.1" className="hcap-edit"
                               value={myHandicap}
@@ -174,12 +174,12 @@ export default function Draft() {
                               onBlur={saveMyHandicap} />
                           : p.handicap}
                       </span>)
-                        {inMatchup(p.id) && <span className="dim"> · in matchups</span>}
+                        {inMatchup(p.id) && <span className="tag">in matchups</span>}
                       </span>
                       {canPickFor(t.id) && (
                         <span className="row">
-                          <button disabled={busyId === p.id || inMatchup(p.id)} onClick={() => undoPick(p.id)}>↩ Undo</button>
-                          <button disabled={busyId === p.id || inMatchup(p.id)} onClick={() => removePlayer(p.id)}>✕ Remove</button>
+                          <button className="mini" disabled={busyId === p.id || inMatchup(p.id)} onClick={() => undoPick(p.id)}>Undo</button>
+                          <button className="mini danger" disabled={busyId === p.id || inMatchup(p.id)} onClick={() => removePlayer(p.id)}>Remove</button>
                         </span>
                       )}
                     </li>
@@ -205,7 +205,7 @@ export default function Draft() {
                   <span className="row">
                     {teams.filter(t => canPickFor(t.id)).map(t =>
                       <button key={t.id} disabled={busyId === p.id || t.id !== nextTeam?.id} onClick={() => assign(p.id, t.id)}>→ {t.name}</button>)}
-                    <button disabled={busyId === p.id} onClick={() => removePlayer(p.id)}>✕ Remove</button>
+                    <button className="mini danger" disabled={busyId === p.id} onClick={() => removePlayer(p.id)}>Remove</button>
                   </span>
                 )}
               </div>

@@ -20,6 +20,16 @@ button:hover{background:#ece8cf}
 button.primary{background:var(--green);border-color:var(--green);color:#fff}
 button.primary:hover{background:var(--green-hi)}
 button:disabled{opacity:.5;cursor:not-allowed}
+button.mini{padding:3px 9px;font-size:12px;font-weight:600;letter-spacing:0;white-space:nowrap;border-width:1px;background:transparent}
+button.mini:hover{background:var(--green);color:#fff}
+button.mini.danger{color:#9c2f22;border-color:rgba(156,47,34,.5)}
+button.mini.danger:hover{background:#9c2f22;border-color:#9c2f22;color:#fff}
+button.mini:disabled:hover{background:transparent;color:inherit}
+.pname{flex:1;min-width:0}
+.tag{display:inline-block;margin-left:8px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--hair);border-radius:2px;white-space:nowrap}
+.playerrow{flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--hair)}
+.playerrow .row{flex-wrap:wrap;gap:6px}
+label.row select{width:auto;min-width:92px;margin-top:0}
 hr{border:none;border-top:1px solid var(--hair);margin:14px 0}
 
 .nav{display:flex;align-items:center;gap:16px;padding:12px 18px;background:var(--green);color:var(--paper);flex-wrap:wrap;border-bottom:4px solid var(--gold)}
@@ -106,10 +116,10 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .teamname-edit{border:none;background:transparent;font:inherit;font-weight:700;color:inherit;padding:0;width:100%;border-bottom:2px solid transparent;border-radius:0;margin:0}
 .teamname-edit:hover{border-bottom-color:var(--hair)}
 .teamname-edit:focus{outline:none;border-bottom-color:var(--gold)}
-.name-edit{border:none;background:transparent;font:inherit;color:inherit;padding:0;width:120px;border-bottom:2px solid transparent;border-radius:0;margin:0}
+.name-edit{border:none;background:transparent;font:inherit;color:inherit;padding:0;width:150px;border-bottom:2px solid transparent;border-radius:0;margin:0}
 .name-edit:hover{border-bottom-color:var(--hair)}
 .name-edit:focus{outline:none;border-bottom-color:var(--gold)}
-.hcap-edit{border:none;background:transparent;font:inherit;color:inherit;padding:0;width:42px;border-bottom:2px solid transparent;border-radius:0;margin:0;text-align:center;-moz-appearance:textfield}
+.hcap-edit{border:none;background:transparent;font:inherit;color:inherit;padding:0;width:34px;border-bottom:2px solid transparent;border-radius:0;margin:0;text-align:center;-moz-appearance:textfield}
 .hcap-edit::-webkit-outer-spin-button,.hcap-edit::-webkit-inner-spin-button{-webkit-appearance:none}
 .hcap-edit:hover{border-bottom-color:var(--hair)}
 .hcap-edit:focus{outline:none;border-bottom-color:var(--gold)}
