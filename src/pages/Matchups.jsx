@@ -12,6 +12,9 @@ export default function Matchups() {
   const [matches, setMatches] = useState([]);
   const [courses, setCourses] = useState([]);
   const [err, setErr] = useState('');
+  const [swapRound, setSwapRound] = useState(null);
+  const [swapA, setSwapA] = useState('');
+  const [swapB, setSwapB] = useState('');
 
   async function load() {
     const evt = profile.event_id;
@@ -94,6 +97,28 @@ export default function Matchups() {
   }
   async function removeMatch(id) { await supabase.from('matches').delete().eq('id', id); load(); }
 
+  // Swap two same-team players within a round. The second player may be in another match or
+  // not placed yet (then the first simply drops out of their match). Blocked once either
+  // match is submitted so recorded results can't be rewritten.
+  async function swapInRound(roundId) {
+    setErr('');
+    const roundMatches = matches.filter(m => m.round_id === roundId);
+    const matchOf = id => roundMatches.find(m => m.side_a_players.includes(id) || m.side_b_players.includes(id));
+    const ma = matchOf(swapA), mb = matchOf(swapB);
+    if (!ma || !swapB || swapA === swapB) { setErr('Pick two different players.'); return; }
+    if (ma.submitted || mb?.submitted) { setErr('A submitted match can’t be changed.'); return; }
+    const sub = (m, from, to) => ({
+      side_a_players: m.side_a_players.map(id => id === from ? to : id),
+      side_b_players: m.side_b_players.map(id => id === from ? to : id)
+    });
+    const results = [await supabase.from('matches').update(sub(ma, swapA, swapB)).eq('id', ma.id)];
+    if (mb) results.push(await supabase.from('matches').update(sub(mb, swapB, swapA)).eq('id', mb.id));
+    const failed = results.find(r => r.error);
+    if (failed) { setErr(failed.error.message); load(); return; }
+    setSwapRound(null); setSwapA(''); setSwapB('');
+    load();
+  }
+
   const holesForRound = round => courses.find(c => c.id === round.course_id)?.holes || [];
 
   // Shotgun start: spread this round's matches to distinct, evenly-spaced holes, with faster
@@ -150,6 +175,32 @@ export default function Matchups() {
                 <span className="muted small">Spreads matches around the course; faster groups get the harder holes.</span>
               </div>
             )}
+            {canFlip && matchesMade > 0 && (swapRound === r.id ? (() => {
+              const matchIdx = id => roundMatches.findIndex(m => m.side_a_players.includes(id) || m.side_b_players.includes(id));
+              const playerA = players.find(p => p.id === swapA);
+              const optsB = !playerA ? [] : players.filter(p =>
+                p.team_id === playerA.team_id && p.id !== swapA && matchIdx(p.id) !== matchIdx(swapA));
+              const label = p => `${p.display_name} (${matchIdx(p.id) >= 0 ? 'Match ' + (matchIdx(p.id) + 1) : 'unplaced'})`;
+              return (
+                <div className="row" style={{ marginBottom: '.5rem' }}>
+                  <select value={swapA} onChange={e => { setSwapA(e.target.value); setSwapB(''); }}>
+                    <option value="">— player —</option>
+                    {players.filter(p => matchIdx(p.id) >= 0).map(p => <option key={p.id} value={p.id}>{label(p)}</option>)}
+                  </select>
+                  <span className="muted small">↔</span>
+                  <select value={swapB} onChange={e => setSwapB(e.target.value)} disabled={!swapA}>
+                    <option value="">— swap with —</option>
+                    {optsB.map(p => <option key={p.id} value={p.id}>{label(p)}</option>)}
+                  </select>
+                  <button className="primary" disabled={!swapA || !swapB} onClick={() => swapInRound(r.id)}>Swap</button>
+                  <button onClick={() => { setSwapRound(null); setSwapA(''); setSwapB(''); }}>Cancel</button>
+                </div>
+              );
+            })() : (
+              <div className="row" style={{ marginBottom: '.5rem' }}>
+                <button onClick={() => { setSwapRound(r.id); setSwapA(''); setSwapB(''); }}>Swap players</button>
+              </div>
+            ))}
             <ul className="clean">
               {roundMatches.map(m => (
                 <li key={m.id} className="row between">
