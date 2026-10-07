@@ -155,7 +155,8 @@ export default function Matchups() {
       {err && <p className="err">{err}</p>}
       {teams.length < 2 && <p className="muted">Draft teams first.</p>}
       {rounds.map(r => {
-        const roundMatches = matches.filter(m => m.round_id === r.id);
+        const roundMatches = matches.filter(m => m.round_id === r.id)
+          .sort((x, y) => (x.start_hole ?? 1) - (y.start_hole ?? 1) || x.seq - y.seq);
         const matchesMade = roundMatches.length;
         const roundHoles = holesForRound(r);
         const avA = availablePlayers(teams[0]?.id, r.id);

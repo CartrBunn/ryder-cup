@@ -114,14 +114,17 @@ export default function ScoreEntry() {
         <div className="live">{computed.state.status}</div>
         <div className="right">{nameOf(match.side_b_players)}</div>
       </div>
-      <p className="muted small">Playing handicaps this format — {nameA}: {computed.aHcp}, {nameB}: {computed.bHcp}
-        {computed.strokeMap.receiver && ` · ${computed.strokeMap.receiver === 'A' ? nameA : nameB} gets ${Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)`}</p>
+      {computed.strokeMap.receiver && (
+        <p className="muted small">
+          {computed.strokeMap.receiver === 'A' ? nameA : nameB} gets {Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)
+        </p>
+      )}
       {match.start_hole && <p className="muted small">Shotgun start · begins on hole {match.start_hole}</p>}
 
       <div className="table-scroll card">
         <table className="scorecard">
           <thead>
-            <tr><th>Hole</th><th>Par</th><th>SI</th><th>{nameA}</th><th>{nameB}</th><th>Result</th></tr>
+            <tr><th>Hole</th><th>Par</th><th>{nameA}</th><th>{nameB}</th><th>Result</th></tr>
           </thead>
           <tbody>
             {holes.map(h => {
@@ -132,7 +135,6 @@ export default function ScoreEntry() {
                 <tr key={h.number}>
                   <td>{h.number}</td>
                   <td className="dim">{h.par}</td>
-                  <td className="dim">{h.strokeIndex}</td>
                   <td>
                     <input className="hole" inputMode="numeric" value={gross.A[h.number] ?? ''}
                       onChange={e => setHole('A', h.number, e.target.value)} disabled={!canEdit} />
