@@ -26,7 +26,7 @@ function Nav() {
   const close = () => setOpen(false);
   return (
     <nav className="nav">
-      <Link to="/" className="brand" onClick={close}>⛳ Ryder Cup</Link>
+      <Link to="/" className="brand" onClick={close}>Ryder Cup</Link>
       <button className="hamburger" onClick={() => setOpen(o => !o)} aria-label="Menu">
         {open ? '✕' : '☰'}
       </button>
