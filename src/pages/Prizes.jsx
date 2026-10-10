@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import { computeEvent } from '../lib/matchcompute';
+import { loadEvent } from '../lib/loadEvent';
 
 function shuffle(arr) {
   const a = [...arr];
@@ -19,19 +20,18 @@ export default function Prizes() {
   const [data, setData] = useState(null);
   const [tieOrder, setTieOrder] = useState({});
 
+  const [loadErr, setLoadErr] = useState('');
+
+  async function load() {
+    try {
+      setData(await loadEvent(profile.event_id));
+      setLoadErr('');
+    } catch (e) {
+      setLoadErr(e.message || String(e));   // keep the last good list on a failed refresh
+    }
+  }
   useEffect(() => {
     if (!profile?.event_id) return;
-    const evt = profile.event_id;
-    async function load() {
-      const [{ data: event }, { data: teams }, { data: profiles }, { data: matches }] =
-        await Promise.all([
-          supabase.from('events').select('*').eq('id', evt).single(),
-          supabase.from('teams').select('*').eq('event_id', evt),
-          supabase.from('profiles').select('*').eq('event_id', evt),
-          supabase.from('matches').select('id,final,side_a_players,side_b_players').eq('event_id', evt),
-        ]);
-      setData({ event, teams: teams || [], profiles: profiles || [], matches: matches || [] });
-    }
     load();
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
@@ -45,18 +45,21 @@ export default function Prizes() {
     const rec = {};
     for (const p of profiles) rec[p.id] = { w: 0, h: 0, l: 0 };
 
+    // Results come from the same engine as the team leaderboard, so the two always agree.
+    const ctxById = computeEvent(data);
     for (const m of matches) {
-      if (!m.final) continue;
+      const final = ctxById[m.id]?.state.final;
+      if (!final) continue;
       for (const id of m.side_a_players) {
         if (!rec[id]) continue;
-        if (m.final === 'A') rec[id].w++;
-        else if (m.final === 'B') rec[id].l++;
+        if (final === 'A') rec[id].w++;
+        else if (final === 'B') rec[id].l++;
         else rec[id].h++;
       }
       for (const id of m.side_b_players) {
         if (!rec[id]) continue;
-        if (m.final === 'B') rec[id].w++;
-        else if (m.final === 'A') rec[id].l++;
+        if (final === 'B') rec[id].w++;
+        else if (final === 'A') rec[id].l++;
         else rec[id].h++;
       }
     }
@@ -99,6 +102,12 @@ export default function Prizes() {
     setTieOrder(next);
   }
 
+  if (!data && loadErr) return (
+    <div className="center stack">
+      <p className="err">Couldn't load the leaderboard: {loadErr}</p>
+      <button className="primary" onClick={load}>Try again</button>
+    </div>
+  );
   if (!data) return <div className="center">Loading prizes…</div>;
 
   const rows = displayGroups.flatMap(g =>

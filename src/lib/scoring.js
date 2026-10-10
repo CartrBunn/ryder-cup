@@ -77,7 +77,7 @@ export function matchState({ holes, grossA, grossB, aStrokes, bStrokes, startHol
     }
   }
 
-  const wentToEnd = played === holes.length;
+  const wentToEnd = holes.length > 0 && played === holes.length;   // no course → never "finished"
   const decided = closed || wentToEnd;
   const who = up > 0 ? nameA : nameB;
 

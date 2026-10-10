@@ -76,6 +76,9 @@ create table if not exists matches (
 );
 -- For existing databases from before the shotgun start (safe to re-run).
 alter table matches add column if not exists start_hole int;
+-- Concession / agreed halve recorded by hand: 'A' | 'B' | 'half'; null = decided by the scores.
+alter table matches add column if not exists result_override text
+  check (result_override in ('A','B','half'));
 
 create table if not exists hole_scores (
   id uuid primary key default gen_random_uuid(),
@@ -113,7 +116,7 @@ create or replace function redeem_join_code(p_code text, p_name text, p_handicap
 returns uuid language plpgsql security definer as $$
 declare v_event uuid;
 begin
-  select id into v_event from events where join_code = p_code limit 1;
+  select id into v_event from events where lower(trim(join_code)) = lower(trim(p_code)) limit 1;
   if v_event is null then raise exception 'Invalid join code'; end if;
 
   -- Names are the login identity within an event, so they must be unique there.
@@ -183,6 +186,28 @@ create policy captain_assign_team on profiles for update to authenticated
     is_organizer(event_id)
     or team_id in (select id from teams where captain_id = auth.uid())
   );
+
+-- The update policies above say who may touch a profile row, not which columns. Guard the
+-- sensitive ones for direct API writes: only an organizer may change a role or event, and
+-- only a captain/organizer may change a team. The security-definer RPCs run as their owner,
+-- not 'authenticated', and do their own checks, so they pass through.
+create or replace function guard_profile_update()
+returns trigger language plpgsql as $$
+begin
+  if current_user <> 'authenticated' then return new; end if;
+  if (new.role is distinct from old.role or new.event_id is distinct from old.event_id)
+     and not is_organizer(old.event_id) then
+    raise exception 'Only an organizer can change roles';
+  end if;
+  if new.team_id is distinct from old.team_id and not is_event_admin(old.event_id) then
+    raise exception 'Only a captain or organizer can change teams';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists guard_profile_update on profiles;
+create trigger guard_profile_update before update on profiles
+  for each row execute function guard_profile_update();
 
 -- Score entry: any player listed on the match may write that match's scores; captains/organizer too.
 create policy write_scores on hole_scores for all to authenticated
@@ -316,6 +341,25 @@ begin
     update profiles set role = 'player' where id = p_out;
   end if;
   update profiles set team_id = null where id = p_out;
+end;
+$$;
+
+-- Record a concession or agreed halve ('A' | 'B' | 'half'; null clears it). Players in the
+-- match can do this from the course, so it's an RPC — matches is otherwise admin-only.
+create or replace function set_match_result(p_match_id uuid, p_result text)
+returns void language plpgsql security definer as $$
+declare m matches%rowtype;
+begin
+  select * into m from matches where id = p_match_id;
+  if m.id is null then raise exception 'Match not found'; end if;
+  if not (is_event_admin(m.event_id)
+          or auth.uid() = any(m.side_a_players) or auth.uid() = any(m.side_b_players)) then
+    raise exception 'Not authorized';
+  end if;
+  if p_result is not null and p_result not in ('A','B','half') then
+    raise exception 'Invalid result';
+  end if;
+  update matches set result_override = p_result where id = p_match_id;
 end;
 $$;
 

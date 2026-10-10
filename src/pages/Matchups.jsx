@@ -95,18 +95,32 @@ export default function Matchups() {
     await supabase.from('rounds').update({ pending_pick: null }).eq('id', round.id);
     load();
   }
-  async function removeMatch(id) { await supabase.from('matches').delete().eq('id', id); load(); }
+  // Deleting a match also deletes its hole scores (cascade), so confirm — and say so loudly
+  // when scores have already been entered.
+  async function removeMatch(m) {
+    setErr('');
+    const { count, error: countErr } = await supabase.from('hole_scores')
+      .select('id', { count: 'exact', head: true }).eq('match_id', m.id);
+    const who = `${names(m.side_a_players, players)} vs ${names(m.side_b_players, players)}`;
+    const warning = countErr
+      ? `Remove ${who}?\n\nCouldn't check for entered scores — any this match has will be permanently deleted.`
+      : count
+        ? `Remove ${who}?\n\nThis match has ${count} hole score(s) entered. They will be permanently deleted.`
+        : `Remove ${who}?`;
+    if (!window.confirm(warning)) return;
+    const { error } = await supabase.from('matches').delete().eq('id', m.id);
+    if (error) setErr(error.message);
+    load();
+  }
 
   // Swap two same-team players within a round. The second player may be in another match or
-  // not placed yet (then the first simply drops out of their match). Blocked once either
-  // match is submitted so recorded results can't be rewritten.
+  // not placed yet (then the first simply drops out of their match).
   async function swapInRound(roundId) {
     setErr('');
     const roundMatches = matches.filter(m => m.round_id === roundId);
     const matchOf = id => roundMatches.find(m => m.side_a_players.includes(id) || m.side_b_players.includes(id));
     const ma = matchOf(swapA), mb = matchOf(swapB);
     if (!ma || !swapB || swapA === swapB) { setErr('Pick two different players.'); return; }
-    if (ma.submitted || mb?.submitted) { setErr('A submitted match can’t be changed.'); return; }
     const sub = (m, from, to) => ({
       side_a_players: m.side_a_players.map(id => id === from ? to : id),
       side_b_players: m.side_b_players.map(id => id === from ? to : id)
@@ -216,7 +230,7 @@ export default function Matchups() {
                     ) : m.start_hole ? (
                       <span className="muted small">Starts hole {m.start_hole}</span>
                     ) : null}
-                    <button className="mini danger" onClick={() => removeMatch(m.id)}>Remove</button>
+                    <button className="mini danger" onClick={() => removeMatch(m)}>Remove</button>
                   </span>
                 </li>
               ))}

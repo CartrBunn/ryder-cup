@@ -40,14 +40,48 @@ export function computeMatch({ match, round, course, event, profilesById, scores
   const teamAId = profilesById[match.side_a_players[0]]?.team_id || null;
   const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
 
-  const state = matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
-    startHole: match.start_hole,
-    nameA: teamsById[teamAId]?.name || 'A', nameB: teamsById[teamBId]?.name || 'B' });
+  const nameA = teamsById[teamAId]?.name || 'A', nameB = teamsById[teamBId]?.name || 'B';
+  const state = applyRecordedResult(
+    matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
+      startHole: match.start_hole, nameA, nameB }),
+    match.result_override, nameA, nameB);
 
-  const winProb = winProbability({ up: state.up, played: state.played,
-    holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm });
+  const winProb = state.final
+    ? { pA: state.pointsA === 1 ? 1 : 0, pHalf: state.final === 'half' ? 1 : 0, pB: state.pointsB === 1 ? 1 : 0 }
+    : winProbability({ up: state.up, played: state.played,
+        holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm });
 
   return { state, strokeMap: sm, aHcp, bHcp, winProb, teamAId, teamBId };
+}
+
+// A result recorded by hand (a concession or an agreed halve: 'A' | 'B' | 'half') ends a
+// match the scores haven't decided yet. Once the scores decide it, the scores win.
+function applyRecordedResult(state, result, nameA, nameB) {
+  if (!result || state.decided) return state;
+  const status = result === 'half' ? 'Match halved (agreed)'
+    : `${result === 'A' ? nameA : nameB} wins (conceded)`;
+  return { ...state, decided: true, final: result, status,
+    pointsA: result === 'A' ? 1 : result === 'half' ? 0.5 : 0,
+    pointsB: result === 'B' ? 1 : result === 'half' ? 0.5 : 0 };
+}
+
+// Compute every match in a loaded event (see loadEvent). Returns { [matchId]: computeMatch result }.
+export function computeEvent({ event, teams, profiles, courses, rounds, matches, scores }) {
+  const profilesById = Object.fromEntries(profiles.map(p => [p.id, p]));
+  const teamsById = Object.fromEntries(teams.map(t => [t.id, t]));
+  const courseById = Object.fromEntries(courses.map(c => [c.id, c]));
+  const roundById = Object.fromEntries(rounds.map(r => [r.id, r]));
+  const scoresByMatch = {};
+  for (const s of scores) (scoresByMatch[s.match_id] ||= []).push(s);
+
+  const ctxById = {};
+  for (const m of matches) {
+    const round = roundById[m.round_id];
+    if (!round) continue;
+    ctxById[m.id] = computeMatch({ match: m, round, course: courseById[round.course_id], event,
+      profilesById, teamsById, scores: scoresByMatch[m.id] || [] });
+  }
+  return ctxById;
 }
 
 // Roll all matches into team totals. Returns { [teamId]: points }.

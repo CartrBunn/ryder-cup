@@ -218,7 +218,10 @@ export default function AdminSetup() {
       <section className="card">
         <h3>Basics</h3>
         <label>Event name<input value={event.name} onChange={e => setEvent({ ...event, name: e.target.value })} /></label>
-        <label>Join code<input value={event.join_code} onChange={e => setEvent({ ...event, join_code: e.target.value })} /></label>
+        {/* Player logins are derived from the join code, so it's frozen once anyone has joined. */}
+        <label>Join code<input value={event.join_code} readOnly={players.length > 1}
+          onChange={e => setEvent({ ...event, join_code: e.target.value })} /></label>
+        {players.length > 1 && <p className="muted small">Locked — players sign in with this code, so changing it would lock them out.</p>}
         <div className="cols4">
           <label>Singles %<input type="number" value={event.singles_pct} onChange={e => setEvent({ ...event, singles_pct: +e.target.value })} /></label>
           <label>Alt-shot %<input type="number" value={event.altshot_pct} onChange={e => setEvent({ ...event, altshot_pct: +e.target.value })} /></label>

@@ -20,21 +20,28 @@ export default function Signup() {
     setBusy(true);
     try {
       const { email, password } = playerCreds(form);
-      // Create the player's hidden account. If it already exists, this name is taken in the event.
+      // Create the player's hidden account. If it already exists and the PIN matches, it's the
+      // same person retrying a join that failed partway (e.g. join code typed in the wrong
+      // case) — carry on and finish joining. Otherwise the name is taken in this event.
       const { error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        if (/already registered/i.test(error.message))
-          throw new Error('That name is already taken in this event — add a last initial, or use Log in if it\'s you.');
-        throw error;
-      }
+      if (error && !/already registered/i.test(error.message)) throw error;
       const s = await supabase.auth.signInWithPassword({ email, password });
-      if (s.error) throw s.error;
-      const { error: rpcErr } = await supabase.rpc('redeem_join_code', {
-        p_code: form.code.trim(),
-        p_name: form.name.trim(),
-        p_handicap: Number(form.handicap) || 0
-      });
-      if (rpcErr) throw rpcErr;
+      if (s.error) {
+        if (error) throw new Error('That name is already taken in this event — add a last initial, or use Log in if it\'s you.');
+        throw s.error;
+      }
+      // Already fully joined (they used Join instead of Log in)? Just sign them in — re-joining
+      // would overwrite their handicap with whatever is (or isn't) in the form.
+      const { data: existing } = await supabase.from('profiles')
+        .select('event_id').eq('id', s.data.user.id).maybeSingle();
+      if (!existing?.event_id) {
+        const { error: rpcErr } = await supabase.rpc('redeem_join_code', {
+          p_code: form.code.trim(),
+          p_name: form.name.trim(),
+          p_handicap: Number(form.handicap) || 0
+        });
+        if (rpcErr) throw rpcErr;
+      }
       await refreshProfile();
       nav('/');
     } catch (e) {

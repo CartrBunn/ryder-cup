@@ -1,53 +1,44 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { computeMatch, tournamentTotals, tournamentWinProbability } from '../lib/matchcompute';
+import { computeEvent, tournamentTotals, tournamentWinProbability } from '../lib/matchcompute';
+import { loadEvent } from '../lib/loadEvent';
 import TugBar from '../components/TugBar';
 
 export default function Lobby() {
   const { profile } = useAuth();
   const nav = useNavigate();
   const [data, setData] = useState(null);
+  const [loadErr, setLoadErr] = useState('');
 
+  async function load() {
+    try {
+      setData(await loadEvent(profile.event_id));
+      setLoadErr('');
+    } catch (e) {
+      // On a failed refresh keep showing the last good board rather than a partial one.
+      setLoadErr(e.message || String(e));
+    }
+  }
   useEffect(() => {
     if (!profile?.event_id) return;
-    const evt = profile.event_id;
-    async function load() {
-      const [{ data: event }, { data: teams }, { data: profiles }, { data: courses },
-             { data: rounds }, { data: matches }, { data: scores }] = await Promise.all([
-        supabase.from('events').select('*').eq('id', evt).single(),
-        supabase.from('teams').select('*').eq('event_id', evt),
-        supabase.from('profiles').select('*').eq('event_id', evt),
-        supabase.from('courses').select('*').eq('event_id', evt),
-        supabase.from('rounds').select('*').eq('event_id', evt).order('seq'),
-        supabase.from('matches').select('*').eq('event_id', evt).order('seq'),
-        supabase.from('hole_scores').select('*')
-      ]);
-      setData({ event, teams: teams || [], profiles: profiles || [], courses: courses || [],
-                rounds: rounds || [], matches: matches || [], scores: scores || [] });
-    }
     load();
     const t = setInterval(load, 60000);   // auto-refresh the board every minute
     return () => clearInterval(t);
   }, [profile?.event_id]);
 
   if (!profile) return <div className="center">No event yet.</div>;
+  if (!data && loadErr) return (
+    <div className="center stack">
+      <p className="err">Couldn't load the leaderboard: {loadErr}</p>
+      <button className="primary" onClick={load}>Try again</button>
+    </div>
+  );
   if (!data) return <div className="center">Loading leaderboard…</div>;
 
-  const { event, teams, profiles, courses, rounds, matches, scores } = data;
+  const { teams, profiles, rounds, matches } = data;
   const profilesById = Object.fromEntries(profiles.map(p => [p.id, p]));
-  const teamsById = Object.fromEntries(teams.map(t => [t.id, t]));
-  const courseById = Object.fromEntries(courses.map(c => [c.id, c]));
-  const roundById = Object.fromEntries(rounds.map(r => [r.id, r]));
-
-  const ctxById = {};
-  for (const m of matches) {
-    const round = roundById[m.round_id];
-    const course = courseById[round?.course_id];
-    ctxById[m.id] = computeMatch({ match: m, round, course, event, profilesById, teamsById,
-      scores: scores.filter(s => s.match_id === m.id) });
-  }
+  const ctxById = computeEvent(data);
   const totals = tournamentTotals(matches, ctxById);
   const [teamA, teamB] = teams;
   const aPts = teamA ? (totals[teamA.id] || 0) : 0;
@@ -71,14 +62,16 @@ export default function Lobby() {
   const winStyle = color => color ? { background: color + '28' } : undefined;
 
   // Ensure teamA's players always appear on the left to match the tug bar.
+  // Winner shading comes from the scores themselves — a match is won as soon as it's decided.
   const matchDisplay = m => {
     const aTeamId = profilesById[m.side_a_players[0]]?.team_id;
     const natural = aTeamId === teamA?.id || (!teamA && true);
+    const final = ctxById[m.id]?.state.final;
     return {
       leftPlayers: natural ? m.side_a_players : m.side_b_players,
       rightPlayers: natural ? m.side_b_players : m.side_a_players,
-      leftWon: m.final === (natural ? 'A' : 'B'),
-      rightWon: m.final === (natural ? 'B' : 'A'),
+      leftWon: final === (natural ? 'A' : 'B'),
+      rightWon: final === (natural ? 'B' : 'A'),
     };
   };
 
