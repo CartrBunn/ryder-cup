@@ -5,7 +5,7 @@ import CoinToss from '../components/CoinToss';
 import { assignStartHoles } from '../lib/shotgun';
 
 export default function Matchups() {
-  const { profile } = useAuth();
+  const { profile, myTeamIdFor } = useAuth();
   const [rounds, setRounds] = useState([]);
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -50,7 +50,7 @@ export default function Matchups() {
   }, [profile?.event_id]);
 
   const isOrganizer = profile.role === 'organizer';
-  const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
+  const myTeamId = myTeamIdFor(teams);
   const canFlip = isOrganizer || !!myTeamId;
 
   async function tossRound(roundId, teamId) {

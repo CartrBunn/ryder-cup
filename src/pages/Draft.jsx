@@ -5,7 +5,7 @@ import CoinToss from '../components/CoinToss';
 
 // Alternating snake draft: A, B, B, A, A, B, ...  Captains/organizer assign from the pool.
 export default function Draft() {
-  const { profile } = useAuth();
+  const { profile, myTeamIdFor } = useAuth();
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -85,7 +85,7 @@ export default function Draft() {
   const nextTeam = teams[nextSide === 'A' ? aIdx : 1 - aIdx];
 
   const isOrganizer = profile.role === 'organizer';
-  const myTeamId = teams.find(t => t.captain_id === profile.id)?.id;
+  const myTeamId = myTeamIdFor(teams);
   const canPickFor = teamId => isOrganizer || teamId === myTeamId;
   const canManage = isOrganizer || !!myTeamId;   // organizers + captains act; everyone else watches
   const draftLocked = players.some(p => p.team_id);   // once the first pick lands, lock the toss

@@ -39,7 +39,11 @@ hr{border:none;border-top:1px solid var(--hair);margin:14px 0}
 .navlinks{display:flex;gap:14px;flex:1}
 .whoami{font-size:12px;opacity:.7}
 .nav .logout{background:transparent;border:1px solid rgba(255,255,255,.4);color:var(--paper);font-size:12px;padding:5px 10px;border-radius:2px;cursor:pointer}
+.nav .viewas{background:transparent;border:1px solid rgba(255,255,255,.4);color:var(--paper);font-size:12px;padding:5px 8px;border-radius:2px;cursor:pointer;width:auto}
+.nav .viewas option{color:#000}
 .nav .logout:hover{background:rgba(255,255,255,.12)}
+.previewbar{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:8px 16px;background:var(--gold);color:var(--green);font-size:13px;font-weight:600}
+.previewbar button{background:var(--green);color:var(--paper);border:0;font-size:12px;padding:5px 10px;border-radius:2px;cursor:pointer}
 .hamburger{display:none;background:transparent;border:1px solid rgba(255,255,255,.4);color:var(--paper);font-size:16px;padding:4px 10px;border-radius:6px;cursor:pointer;line-height:1}
 .page{max-width:860px;margin:0 auto;padding:22px 16px 60px}
 .center{color:var(--ink);text-align:center;padding:60px}

@@ -9,6 +9,15 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRecovery, setIsRecovery] = useState(false);
+  // Organizers can preview the app as a player or as a team's captain sees it.
+  // null | { role: 'player' } | { role: 'captain', teamId }. UI-only: database permissions are unchanged.
+  const [viewAs, setViewAsState] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('viewAs')) || null; } catch { return null; }
+  });
+  const setViewAs = v => {
+    setViewAsState(v);
+    try { localStorage.setItem('viewAs', JSON.stringify(v)); } catch {}
+  };
 
   async function loadProfile(userId) {
     if (!userId) { setProfile(null); return; }
@@ -37,8 +46,19 @@ export function AuthProvider({ children }) {
     await loadProfile(data.session?.user?.id);
   };
 
+  const preview = profile?.role === 'organizer' ? viewAs : null;
+  const effectiveProfile = preview ? { ...profile, role: preview.role } : profile;
+  // The team this user captains. In a preview it's the previewed team (or none for player view),
+  // so an organizer who also captains a team doesn't see their own captain controls.
+  const myTeamIdFor = teams => preview
+    ? preview.teamId || undefined
+    : teams.find(t => t.captain_id === profile?.id)?.id;
+
   return (
-    <AuthCtx.Provider value={{ session, profile, loading, refreshProfile, isRecovery, setIsRecovery }}>
+    <AuthCtx.Provider value={{
+      session, profile: effectiveProfile, realProfile: profile, loading, refreshProfile,
+      isRecovery, setIsRecovery, viewAs: preview, setViewAs, myTeamIdFor,
+    }}>
       {children}
     </AuthCtx.Provider>
   );
