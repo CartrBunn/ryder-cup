@@ -135,8 +135,9 @@ export default function Matchups() {
 
   const holesForRound = round => courses.find(c => c.id === round.course_id)?.holes || [];
 
-  // Shotgun start: spread this round's matches to distinct, evenly-spaced holes, with faster
-  // (lower average-handicap) groups on the harder holes. Writes auto-broadcast via realtime.
+  // Shotgun start: spread this round's groups to distinct, evenly-spaced holes, with faster
+  // (lower average-handicap) groups on the harder holes. Singles go out two matches per hole
+  // as a foursome. Writes auto-broadcast via realtime.
   async function autoAssignHoles(round, roundMatches) {
     setErr('');
     const holes = holesForRound(round);
@@ -146,7 +147,7 @@ export default function Matchups() {
       const ids = [...m.side_a_players, ...m.side_b_players];
       return ids.length ? ids.reduce((s, id) => s + (hcpById[id] || 0), 0) / ids.length : 0;
     };
-    const assign = assignStartHoles(roundMatches, holes, avgHcpOf);
+    const assign = assignStartHoles(roundMatches, holes, avgHcpOf, round.format === 'singles' ? 2 : 1);
     const results = await Promise.all(
       Object.entries(assign).map(([id, hole]) =>
         supabase.from('matches').update({ start_hole: hole }).eq('id', id)));
