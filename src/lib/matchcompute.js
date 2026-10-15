@@ -41,10 +41,8 @@ export function computeMatch({ match, round, course, event, profilesById, scores
   const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
 
   const nameA = teamsById[teamAId]?.name || 'A', nameB = teamsById[teamBId]?.name || 'B';
-  const state = applyRecordedResult(
-    matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
-      startHole: match.start_hole, nameA, nameB }),
-    match.result_override, nameA, nameB);
+  const state = matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
+    startHole: match.start_hole, nameA, nameB });
 
   const winProb = state.final
     ? { pA: state.pointsA === 1 ? 1 : 0, pHalf: state.final === 'half' ? 1 : 0, pB: state.pointsB === 1 ? 1 : 0 }
@@ -52,17 +50,6 @@ export function computeMatch({ match, round, course, event, profilesById, scores
         holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm });
 
   return { state, strokeMap: sm, aHcp, bHcp, winProb, teamAId, teamBId };
-}
-
-// A result recorded by hand (a concession or an agreed halve: 'A' | 'B' | 'half') ends a
-// match the scores haven't decided yet. Once the scores decide it, the scores win.
-function applyRecordedResult(state, result, nameA, nameB) {
-  if (!result || state.decided) return state;
-  const status = result === 'half' ? 'Match halved (agreed)'
-    : `${result === 'A' ? nameA : nameB} wins (conceded)`;
-  return { ...state, decided: true, final: result, status,
-    pointsA: result === 'A' ? 1 : result === 'half' ? 0.5 : 0,
-    pointsB: result === 'B' ? 1 : result === 'half' ? 0.5 : 0 };
 }
 
 // Compute every match in a loaded event (see loadEvent). Returns { [matchId]: computeMatch result }.

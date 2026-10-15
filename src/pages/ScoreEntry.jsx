@@ -73,7 +73,6 @@ export default function ScoreEntry() {
   const [gross, setGross] = useState({ A: {}, B: {} });   // { A:{hole:strokes}, B:{...} }
   const [saving, setSaving] = useState('');
   const [saveErr, setSaveErr] = useState('');
-  const [resultErr, setResultErr] = useState('');
 
   // Server rows plus any of this device's edits that haven't been written yet.
   function withPending(rows) {
@@ -195,15 +194,6 @@ export default function ScoreEntry() {
     store.timers[key] = setTimeout(() => flush(store, id, key), SAVE_DELAY);
   }
 
-  // Record (or clear, with null) a concession or agreed halve: 'A' | 'B' | 'half'.
-  async function recordResult(result, prompt) {
-    if (!window.confirm(prompt)) return;
-    setResultErr('');
-    const { error } = await supabase.rpc('set_match_result', { p_match_id: id, p_result: result });
-    if (error) { setResultErr(error.message); return; }
-    setBundle(b => ({ ...b, match: { ...b.match, result_override: result } }));
-  }
-
   if (loadErr) return (
     <div className="center stack">
       <p className="err">Couldn't load this match: {loadErr}</p>
@@ -275,23 +265,6 @@ export default function ScoreEntry() {
       {canEdit && (
         <p className="muted small">Scores save automatically, and the result counts as soon as the match is decided.</p>
       )}
-
-      {canEdit && match.result_override && (
-        <div className="row">
-          <button onClick={() => recordResult(null, 'Undo the recorded result? The match goes back to being decided by the scores.')}>
-            Undo recorded result
-          </button>
-        </div>
-      )}
-      {canEdit && !match.result_override && !computed.state.decided && computed.teamAId && computed.teamBId && (
-        <div className="row" style={{ flexWrap: 'wrap' }}>
-          <span className="muted small">Match ending early?</span>
-          <button onClick={() => recordResult('B', `${nameA} concedes — ${nameB} wins the match?`)}>{nameA} concedes</button>
-          <button onClick={() => recordResult('A', `${nameB} concedes — ${nameA} wins the match?`)}>{nameB} concedes</button>
-          <button onClick={() => recordResult('half', 'Agree to halve the match?')}>Agree a halve</button>
-        </div>
-      )}
-      {resultErr && <p className="err">{resultErr}</p>}
     </div>
   );
 }
