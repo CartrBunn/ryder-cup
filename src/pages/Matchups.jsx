@@ -87,7 +87,8 @@ export default function Matchups() {
   }
 
   async function addMatch(round, aIds, bIds) {
-    const seq = matches.filter(m => m.round_id === round.id).length + 1;
+    // max+1, not count+1: after a removal the count would reuse an existing seq.
+    const seq = matches.filter(m => m.round_id === round.id).reduce((mx, m) => Math.max(mx, m.seq || 0), 0) + 1;
     const { error } = await supabase.from('matches').insert({
       round_id: round.id, event_id: profile.event_id, seq,
       side_a_players: aIds, side_b_players: bIds
@@ -126,10 +127,21 @@ export default function Matchups() {
       side_a_players: m.side_a_players.map(id => id === from ? to : id),
       side_b_players: m.side_b_players.map(id => id === from ? to : id)
     });
-    const results = [await supabase.from('matches').update(sub(ma, swapA, swapB)).eq('id', ma.id)];
-    if (mb) results.push(await supabase.from('matches').update(sub(mb, swapB, swapA)).eq('id', mb.id));
-    const failed = results.find(r => r.error);
-    if (failed) { setErr(failed.error.message); load(); return; }
+    // Two separate writes can't be atomic from the client, so if the second fails, put the
+    // first back rather than leave a player in two matches.
+    const first = await supabase.from('matches').update(sub(ma, swapA, swapB)).eq('id', ma.id);
+    if (first.error) { setErr(first.error.message); load(); return; }
+    if (mb) {
+      const second = await supabase.from('matches').update(sub(mb, swapB, swapA)).eq('id', mb.id);
+      if (second.error) {
+        const undo = await supabase.from('matches').update({
+          side_a_players: ma.side_a_players, side_b_players: ma.side_b_players }).eq('id', ma.id);
+        setErr(undo.error
+          ? `Swap half-applied (${second.error.message}). Check ${names(ma.side_a_players, players)} vs ${names(ma.side_b_players, players)} and fix by hand.`
+          : `Swap failed, nothing changed: ${second.error.message}`);
+        load(); return;
+      }
+    }
     setSwapRound(null); setSwapA(''); setSwapB('');
     load();
   }

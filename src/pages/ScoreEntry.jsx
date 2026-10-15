@@ -6,7 +6,8 @@ import { computeMatch } from '../lib/matchcompute';
 import { orderedHoles } from '../lib/scoring';
 
 const SAVE_DELAY = 400;     // ms of typing quiet before a hole is written
-const RETRY_DELAY = 3000;   // ms between retries when a write fails (e.g. no signal)
+const ACE_SAVE_DELAY = 2500;   // ms before a lone "1" is written (might be 10-19)
+const RETRY_DELAY = 3000;  // ms between retries when a write fails (e.g. no signal)
 
 // Per-match write queue, one slot per hole cell ('A-7'). Each cell holds only its latest
 // value and has at most one write in flight, so a cell's writes land in order and a stale
@@ -181,6 +182,7 @@ export default function ScoreEntry() {
 
   function setHole(side, hole, raw) {
     const digits = raw.replace(/\D/g, '').slice(0, 2);
+    if (/^0+$/.test(digits)) return;   // 0 is never a real gross score; ignore it
     const v = digits === '' ? null : Number(digits);
     setGross(prev => {
       const next = { ...prev, [side]: { ...prev[side] } };
@@ -191,7 +193,9 @@ export default function ScoreEntry() {
     store.queue[key] = { side, hole, v, by: profile.id };
     if (!saveErr) setSaving('Saving…');
     clearTimeout(store.timers[key]);
-    store.timers[key] = setTimeout(() => flush(store, id, key), SAVE_DELAY);
+    // A lone "1" is usually the start of 10-19, so wait longer before saving it (an ace
+    // would otherwise be announced to everyone mid-keystroke).
+    store.timers[key] = setTimeout(() => flush(store, id, key), v === 1 ? ACE_SAVE_DELAY : SAVE_DELAY);
   }
 
   if (loadErr) return (
