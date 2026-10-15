@@ -141,3 +141,18 @@ export function tournamentWinProbability(matches, ctxById, refTeamId, unplayed =
   }
   return { pCupA, pTie, pCupB, projA, projB: counted - projA, matches: counted };
 }
+
+// Planned match counts for the whole tournament, including rounds whose matchups aren't
+// built yet: every player is placed in every round, so a round holds
+// (players per team) / (players per side) matches. Teams are the first two by name.
+// Returns { plannedForRound(round), unplayed, plannedTotal }.
+export function plannedMatches({ teams, profiles, rounds, matches }) {
+  const [teamA, teamB] = teams;
+  const teamSize = tid => profiles.filter(p => p.team_id === tid).length;
+  const perTeam = teamA && teamB ? Math.min(teamSize(teamA.id), teamSize(teamB.id)) : 0;
+  const perSide = fmt => (fmt === 'singles' ? 1 : 2);
+  const plannedForRound = r => (perTeam ? Math.floor(perTeam / perSide(r.format)) : 0);
+  const madeInRound = rid => matches.filter(m => m.round_id === rid).length;
+  const unplayed = rounds.reduce((s, r) => s + Math.max(0, plannedForRound(r) - madeInRound(r.id)), 0);
+  return { plannedForRound, unplayed, plannedTotal: matches.length + unplayed };
+}

@@ -159,3 +159,32 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
   .scorecard th,.scorecard td{padding:4px 5px}
   input.hole{width:40px;padding:4px}
 }
+
+/* chat */
+.badge{display:inline-block;margin-left:6px;min-width:18px;padding:1px 5px;border-radius:9px;background:var(--gold);color:var(--green);font-size:11px;font-weight:800;text-align:center;letter-spacing:0;line-height:16px}
+.hamburger{position:relative}
+.navdot{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--gold);border:2px solid var(--green)}
+.chat h1{flex:1}
+.msglist{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 290px);min-height:240px;overflow-y:auto;padding:12px;background:var(--paper);border:1px solid var(--green);border-radius:2px}
+.msg{flex-shrink:0;align-self:flex-start;max-width:85%;background:var(--field);border:1px solid var(--hair);border-left:4px solid var(--team,var(--hair));border-radius:2px;padding:6px 10px}
+.msg.mine{align-self:flex-end}
+.msgmeta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+.msgmeta .tag{margin-left:0}
+.msgname{font-weight:700;color:var(--ink)}
+.msgtext{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}
+.msg.auto{align-self:stretch;max-width:none;background:transparent;border:none;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);border-radius:0;text-align:center;padding:8px 6px}
+.msg.auto .msgtext{font-weight:600;color:var(--green);font-size:14px}
+.msg.auto .msgmeta{justify-content:center}
+.msg.auto.clinch,.msg.auto.ace{background:#f6e7a6;border-color:var(--gold)}
+.composer{display:flex;gap:8px}
+.composer input{margin-top:0;flex:1}
+
+/* pop-up alerts */
+.alert{position:fixed;left:0;right:0;margin:0 auto;top:14px;z-index:50;width:min(92vw,440px);display:flex;gap:10px;align-items:flex-start;
+  background:var(--paper);border:1px solid var(--green);border-left:8px solid var(--gold);border-radius:2px;padding:12px 14px;
+  box-shadow:0 6px 18px rgba(12,74,53,.25);font-weight:600;font-size:14px;cursor:pointer;animation:draftpop-in .4s cubic-bezier(.2,1.3,.5,1) both}
+.alertbody{flex:1;display:flex;flex-direction:column;gap:4px}
+.alerthead{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
+.alertx{background:none;border:none;color:var(--muted);padding:0 2px;font-size:14px;line-height:1}
+.alertx:hover{background:none;color:var(--ink)}
+.nav a.chatlink{white-space:nowrap}

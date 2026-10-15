@@ -12,9 +12,14 @@ import ScoreEntry from './pages/ScoreEntry';
 import StartEvent from './pages/StartEvent';
 import ResetPassword from './pages/ResetPassword';
 import Prizes from './pages/Prizes';
+import Chat from './pages/Chat';
+import { ChatProvider, useChat } from './context/ChatContext';
+import AutoPoster from './components/AutoPoster';
+import Alerts from './components/Alerts';
 
 function Nav() {
   const { session, profile, realProfile, viewAs, setViewAs } = useAuth();
+  const { unread } = useChat();
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const [teams, setTeams] = useState([]);
@@ -43,10 +48,12 @@ function Nav() {
       <Link to="/" className="brand" onClick={close}>Ryder Cup</Link>
       <button className="hamburger" onClick={() => setOpen(o => !o)} aria-label="Menu">
         {open ? '✕' : '☰'}
+        {!open && unread > 0 && <span className="navdot" />}
       </button>
       <div className={open ? 'navlinks open' : 'navlinks'}>
         {profile && <Link to="/" onClick={close}>Leaderboard</Link>}
         {profile && <Link to="/prizes" onClick={close}>Individual Leaderboard</Link>}
+        {profile && <Link to="/chat" className="chatlink" onClick={close}>Chat{unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}</Link>}
         {profile && <Link to="/draft" onClick={close}>Draft</Link>}
         {isAdmin && <Link to="/matchups" onClick={close}>Matchups</Link>}
         {profile?.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
@@ -90,10 +97,12 @@ function RecoveryRedirect() {
 }
 
 export default function App() {
+  const { profile } = useAuth();
   return (
-    <>
+    <ChatProvider>
       <RecoveryRedirect />
       <Nav />
+      {profile && <><AutoPoster /><Alerts /></>}
       <main className="page">
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -104,11 +113,12 @@ export default function App() {
           <Route path="/match/:id" element={<Protected><ScoreEntry /></Protected>} />
           <Route path="/draft" element={<Protected><Draft /></Protected>} />
           <Route path="/prizes" element={<Protected><Prizes /></Protected>} />
+          <Route path="/chat" element={<Protected><Chat /></Protected>} />
           <Route path="/matchups" element={<Protected need={['organizer','captain']}><Matchups /></Protected>} />
           <Route path="/admin" element={<Protected need={['organizer']}><AdminSetup /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </>
+    </ChatProvider>
   );
 }
