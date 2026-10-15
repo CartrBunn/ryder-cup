@@ -188,3 +188,4 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .alertx{background:none;border:none;color:var(--muted);padding:0 2px;font-size:14px;line-height:1}
 .alertx:hover{background:none;color:var(--ink)}
 .nav a.chatlink{white-space:nowrap}
+.pushrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:8px 12px;border:1px dashed var(--hair);border-radius:2px;background:var(--paper)}

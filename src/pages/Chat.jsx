@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
+import { disablePush, enablePush, pushStatus } from '../lib/push';
 
 const MAX = 500;
 
@@ -20,6 +21,19 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const listRef = useRef();
+  const [push, setPush] = useState(null);       // see pushStatus()
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => { pushStatus().then(setPush).catch(() => setPush('unsupported')); }, []);
+
+  async function togglePush() {
+    setPushBusy(true); setErr('');
+    try {
+      if (push === 'on') { await disablePush(); setPush('off'); }
+      else setPush(await enablePush());
+    } catch (e) { setErr(e.message || String(e)); }
+    finally { setPushBusy(false); }
+  }
 
   useEffect(() => {
     const evt = profile.event_id;
@@ -65,6 +79,17 @@ export default function Chat() {
           {muted ? '🔕 Alerts muted' : '🔔 Alerts on'}
         </button>
       </div>
+
+      {push && push !== 'unsupported' && (
+        <div className="pushrow">
+          {push === 'on' && <><span>📲 Phone notifications are on for results.</span>
+            <button className="mini" disabled={pushBusy} onClick={togglePush}>Turn off</button></>}
+          {push === 'off' && <><span>Get match results on your phone, even when the app is closed.</span>
+            <button className="mini" disabled={pushBusy} onClick={togglePush}>Turn on notifications</button></>}
+          {push === 'blocked' && <span>Notifications are blocked for this site. Allow them in your browser settings to get results on your phone.</span>}
+          {push === 'install' && <span>To get results on your iPhone: tap Share, then <b>Add to Home Screen</b>, open the app from there, and turn on notifications on this page.</span>}
+        </div>
+      )}
 
       <div className="msglist" ref={listRef}>
         {messages.length === 0 && <p className="muted">No messages yet. Say something!</p>}

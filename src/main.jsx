@@ -4,6 +4,9 @@ import { HashRouter } from 'react-router-dom';   // hash routing = no 404s on Gi
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import './styles.css';
+import { registerServiceWorker } from './lib/push';
+
+registerServiceWorker();
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

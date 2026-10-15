@@ -16,6 +16,7 @@ import Chat from './pages/Chat';
 import { ChatProvider, useChat } from './context/ChatContext';
 import AutoPoster from './components/AutoPoster';
 import Alerts from './components/Alerts';
+import { disablePush } from './lib/push';
 
 function Nav() {
   const { session, profile, realProfile, viewAs, setViewAs } = useAuth();
@@ -32,6 +33,7 @@ function Nav() {
   if (!session) return null;
   const isAdmin = profile && ['organizer', 'captain'].includes(profile.role);
   async function logout() {
+    await disablePush().catch(() => {});   // this device shouldn't keep getting the last user's pushes
     await supabase.auth.signOut();
     nav('/login');
   }
