@@ -15,6 +15,7 @@ export default function Matchups() {
   const [swapRound, setSwapRound] = useState(null);
   const [swapA, setSwapA] = useState('');
   const [swapB, setSwapB] = useState('');
+  const [sentHoles, setSentHoles] = useState({});   // round id -> 'sending' | 'sent'
 
   async function load() {
     const evt = profile.event_id;
@@ -156,6 +157,15 @@ export default function Matchups() {
     load();
   }
 
+  // Organizer: notify everyone of this round's starting holes (each player gets their own).
+  async function sendStartHoles(round) {
+    if (!window.confirm(`Send everyone a notification with their starting hole for ${round.name}?`)) return;
+    setErr(''); setSentHoles(s => ({ ...s, [round.id]: 'sending' }));
+    const { error } = await supabase.rpc('send_start_holes', { p_round: round.id });
+    if (error) { setErr(error.message); setSentHoles(s => ({ ...s, [round.id]: null })); return; }
+    setSentHoles(s => ({ ...s, [round.id]: 'sent' }));
+  }
+
   async function setStartHole(id, value) {
     setErr('');
     const { error } = await supabase.from('matches')
@@ -189,6 +199,12 @@ export default function Matchups() {
               <div className="row" style={{ marginBottom: '.5rem', flexWrap: 'wrap' }}>
                 {canFlip && roundHoles.length > 0 &&
                   <button onClick={() => autoAssignHoles(r, roundMatches)}>Auto Assign Holes</button>}
+                {isOrganizer && roundMatches.every(m => m.start_hole) && (
+                  <button onClick={() => sendStartHoles(r)} disabled={sentHoles[r.id] === 'sending'}
+                    title="Notifies everyone; each player is told their own starting hole">
+                    {sentHoles[r.id] === 'sent' ? '⛳ Starting holes sent' : '⛳ Send starting holes'}
+                  </button>
+                )}
                 {isOrganizer && (swapRound === r.id ? (() => {
               const matchIdx = id => roundMatches.findIndex(m => m.side_a_players.includes(id) || m.side_b_players.includes(id));
               const playerA = players.find(p => p.id === swapA);

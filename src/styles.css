@@ -176,7 +176,7 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .msg.auto .msgtext{font-weight:600;color:var(--green);font-size:14px}
 .msg.auto .msgmeta{justify-content:center}
 .msg.auto.clinch,.msg.auto.ace{background:#f6e7a6;border-color:var(--gold)}
-.composer{display:flex;gap:8px}
+.composer{display:flex;gap:8px;position:relative}
 .composer input{margin-top:0;flex:1}
 
 /* pop-up alerts */
@@ -189,3 +189,12 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .alertx:hover{background:none;color:var(--ink)}
 .nav a.chatlink{white-space:nowrap}
 .pushrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:8px 12px;border:1px dashed var(--hair);border-radius:2px;background:var(--paper)}
+.msg.announce{align-self:stretch;max-width:none;background:#f6e7a6;border:1px solid var(--gold);border-left:6px solid var(--green)}
+.msg.announce .msgtext{font-weight:600}
+.mention{font-weight:700;color:var(--green)}
+.mention.me{background:#f6e7a6;padding:0 3px;border-radius:2px}
+.mentionlist{position:absolute;bottom:calc(100% + 4px);left:0;z-index:5;display:flex;flex-direction:column;min-width:200px;background:var(--paper);border:1px solid var(--green);box-shadow:0 4px 12px rgba(12,74,53,.18)}
+.mentionlist button{border:none;border-bottom:1px solid var(--hair);border-radius:0;text-align:left;font-weight:600;background:transparent}
+.mentionlist button:last-child{border-bottom:none}
+.announcebtn{padding:0 10px;font-size:18px;line-height:1;border-width:1px;background:transparent}
+.announcebtn.on{background:var(--gold);border-color:var(--gold)}

@@ -21,11 +21,22 @@ export function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [lastRead, setLastRead] = useState(0);
   const [muted, setMutedState] = useState(() => ls.get('alertsMuted') === '1');
+  const [people, setPeople] = useState([]);   // [{ id, name, color }] for names and @mentions
   const listeners = useRef(new Set());   // live-insert callbacks (Alerts)
 
   const setMuted = v => { setMutedState(v); ls.set('alertsMuted', v ? '1' : '0'); };
 
+  async function loadPeople() {
+    const [{ data: ps }, { data: ts }] = await Promise.all([
+      supabase.from('profiles').select('id, display_name, team_id').eq('event_id', evt).order('display_name'),
+      supabase.from('teams').select('id, color').eq('event_id', evt)
+    ]);
+    const color = Object.fromEntries((ts || []).map(t => [t.id, t.color]));
+    setPeople((ps || []).map(p => ({ id: p.id, name: p.display_name, color: color[p.team_id] })));
+  }
+
   async function load() {
+    loadPeople();
     const { data, error } = await supabase.from('messages').select('*')
       .eq('event_id', evt).order('created_at', { ascending: false }).limit(LIMIT);
     if (error) return;
@@ -68,9 +79,10 @@ export function ChatProvider({ children }) {
     if (latest > lastRead) { setLastRead(latest); ls.set('chatRead:' + evt, String(latest)); }
   }
 
-  async function send(body) {
+  // kind: 'chat', or 'announce' (organizers) to notify everyone.
+  async function send(body, kind = 'chat') {
     const { data, error } = await supabase.from('messages')
-      .insert({ event_id: evt, author_id: me, body }).select().single();
+      .insert({ event_id: evt, author_id: me, body, kind }).select().single();
     if (error) throw error;
     setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data]);
   }
@@ -84,7 +96,7 @@ export function ChatProvider({ children }) {
   const onLiveInsert = fn => { listeners.current.add(fn); return () => listeners.current.delete(fn); };
 
   return (
-    <ChatCtx.Provider value={{ messages: visible, unread, markRead, send, remove, onLiveInsert, muted, setMuted }}>
+    <ChatCtx.Provider value={{ messages: visible, people, unread, markRead, send, remove, onLiveInsert, muted, setMuted }}>
       {children}
     </ChatCtx.Provider>
   );

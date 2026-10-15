@@ -4,12 +4,13 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { TOAST_KINDS } from '../lib/automations';
+import { mentionedIds } from '../lib/mentions';
 
 const GATHER = 2500;     // ms to wait for more alerts so a burst shows as one pop-up
 const SHOW_FOR = 9000;   // ms a pop-up stays up
 
-// "You're in Match 3 vs Brown" for the players in a round whose pairings were just posted.
-async function myPairing(roundId, me) {
+// The signed-in player's match in a round, for "You're in Match 3 vs Brown" style lines.
+async function myMatch(roundId, me) {
   const { data: ms } = await supabase.from('matches').select('*').eq('round_id', roundId);
   const m = (ms || []).find(x => x.side_a_players.includes(me) || x.side_b_players.includes(me));
   if (!m) return null;
@@ -17,18 +18,35 @@ async function myPairing(roundId, me) {
   const theirs = mine === m.side_a_players ? m.side_b_players : m.side_a_players;
   const { data: ps } = await supabase.from('profiles').select('id, display_name').in('id', [...mine, ...theirs]);
   const name = id => ps?.find(p => p.id === id)?.display_name || '—';
-  const partners = mine.filter(id => id !== me).map(name);
-  const who = partners.length ? `You and ${partners.join(' & ')} are` : "You're";
-  const start = m.start_hole ? `, starting on hole ${m.start_hole}` : '';
-  return `${who} in Match ${m.seq} vs ${theirs.map(name).join('/')}${start}`;
+  return { m, partners: mine.filter(id => id !== me).map(name), vs: theirs.map(name).join('/') };
 }
 
-// Pop-up alerts for automated posts. Bursts are combined into one, nothing pops up over the
+async function pairingLine(roundId, me) {
+  const f = await myMatch(roundId, me);
+  if (!f) return null;
+  const who = f.partners.length ? `You and ${f.partners.join(' & ')} are` : "You're";
+  const start = f.m.start_hole ? `, starting on hole ${f.m.start_hole}` : '';
+  return `📋 ${who} in Match ${f.m.seq} vs ${f.vs}${start}`;
+}
+
+async function startHoleLine(row, me) {
+  const roundId = row.auto_key.split(':')[1];
+  const [f, { data: round }] = await Promise.all([
+    myMatch(roundId, me),
+    supabase.from('rounds').select('name').eq('id', roundId).maybeSingle()
+  ]);
+  return f ? `⛳ ${round?.name || 'Next round'}: you start on hole ${f.m.start_hole} (Match ${f.m.seq} vs ${f.vs})` : row.body;
+}
+
+// Pop-up alerts for automated posts, organizer announcements and starting holes, and
+// chat messages that @mention you. Bursts are combined into one, nothing pops up over the
 // scorecard (it waits until you leave the match page) or on the chat page (you're reading it),
 // and a muted device gets none.
 export default function Alerts() {
   const { realProfile } = useAuth();
-  const { onLiveInsert, muted } = useChat();
+  const { onLiveInsert, muted, people } = useChat();
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
   const { pathname } = useLocation();
   const nav = useNavigate();
   const [toast, setToast] = useState(null);       // { lines: [] }
@@ -61,10 +79,18 @@ export default function Alerts() {
   }
 
   useEffect(() => onLiveInsert(async row => {
+    const me = realProfile?.id;
+    if (!me || row.author_id === me) return;
+    const author = peopleRef.current.find(p => p.id === row.author_id)?.name || 'Someone';
     if (TOAST_KINDS.has(row.kind)) add(row.body);
-    else if (row.kind === 'pairings' && realProfile) {
-      const line = await myPairing(row.auto_key.split(':')[1], realProfile.id).catch(() => null);
-      if (line) add('📋 ' + line);
+    else if (row.kind === 'announce') add(`📣 ${author}: ${row.body}`);
+    else if (row.kind === 'chat' && mentionedIds(row.body, peopleRef.current).has(me)) {
+      add(`💬 ${author} mentioned you: ${row.body}`);
+    } else if (row.kind === 'pairings') {
+      const line = await pairingLine(row.auto_key.split(':')[1], me).catch(() => null);
+      if (line) add(line);
+    } else if (row.kind === 'startholes') {
+      add(await startHoleLine(row, me).catch(() => row.body));
     }
   }), [realProfile?.id]);
 
