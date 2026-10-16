@@ -19,7 +19,8 @@ Ordinary chat messages aren't pushed. Each phone opts in on the Chat page; iPhon
 One-time setup:
 
 1. Run `patch-2026-10-chat.sql`, then `patch-2026-10-push.sql`, then
-   `patch-2026-10-chat-notify.sql`, then `patch-2026-10-projections.sql`, in the SQL editor.
+   `patch-2026-10-chat-notify.sql`, then `patch-2026-10-projections.sql`, then
+   `patch-2026-10-reactions.sql` (emoji reactions in chat), in the SQL editor.
    (The push patch has this project's URL in its `notify_push` trigger — change it for another project.)
 2. Edge Functions → Deploy a new function → name it **send-push** → paste
    `functions/send-push/index.ts` → deploy. In its settings, turn **Verify JWT off**

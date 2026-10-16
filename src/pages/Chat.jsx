@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useChat } from '../context/ChatContext';
+import { REACTIONS, useChat } from '../context/ChatContext';
 import { disablePush, enablePush, pushStatus } from '../lib/push';
 import { splitMentions } from '../lib/mentions';
 
@@ -21,7 +21,7 @@ const typingMention = (text, caret) => {
 
 export default function Chat() {
   const { realProfile } = useAuth();
-  const { messages, people, markRead, send, remove, muted, setMuted } = useChat();
+  const { messages, people, reactions, react, markRead, send, remove, muted, setMuted } = useChat();
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
   const [announce, setAnnounce] = useState(false);
@@ -31,10 +31,32 @@ export default function Chat() {
   const inputRef = useRef();
   const [push, setPush] = useState(null);       // see pushStatus()
   const [pushBusy, setPushBusy] = useState(false);
+  const [picking, setPicking] = useState(null);   // message id with the emoji picker open
 
   const me = realProfile.id;
   const isOrganizer = realProfile.role === 'organizer';
   const byId = useMemo(() => Object.fromEntries(people.map(p => [p.id, p])), [people]);
+
+  // Reactions grouped per message, in REACTIONS order: { [message id]: [{ emoji, users }] }
+  const reactionsBy = useMemo(() => {
+    const by = {};
+    for (const r of reactions) ((by[r.message_id] ||= {})[r.emoji] ||= []).push(r.user_id);
+    return Object.fromEntries(Object.entries(by).map(([id, e]) =>
+      [id, REACTIONS.filter(x => e[x]).map(x => ({ emoji: x, users: e[x] }))]));
+  }, [reactions]);
+
+  // Close the picker on a tap anywhere else.
+  useEffect(() => {
+    if (!picking) return;
+    const close = e => { if (!e.target.closest('.reactpick, .reactadd')) setPicking(null); };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [picking]);
+
+  async function toggleReaction(id, emoji) {
+    setPicking(null); setErr('');
+    try { await react(id, emoji); } catch (e) { setErr(e.message || String(e)); }
+  }
 
   useEffect(() => { pushStatus().then(setPush).catch(() => setPush('unsupported')); }, []);
 
@@ -94,6 +116,29 @@ export default function Chat() {
   );
   const del_ = m => canDelete(m) &&
     <button className="btn-icon" onClick={() => del(m.id)} aria-label="Delete">✕</button>;
+  const names = ids => ids.map(id => id === me ? 'You' : byId[id]?.name || 'Someone').join(', ');
+  const react_ = m => (
+    <div className="reactbar">
+      {(reactionsBy[m.id] || []).map(({ emoji, users }) => (
+        <button key={emoji} type="button" className={'reactchip' + (users.includes(me) ? ' on' : '')}
+          onClick={() => toggleReaction(m.id, emoji)} title={names(users)}
+          aria-label={`${emoji} ${users.length}: ${names(users)}`} aria-pressed={users.includes(me)}>
+          {emoji}<span>{users.length}</span>
+        </button>
+      ))}
+      <span className="reactwrap">
+        <button type="button" className="reactadd" aria-label="Add reaction" aria-expanded={picking === m.id}
+          onClick={() => setPicking(p => p === m.id ? null : m.id)}>☺+</button>
+        {picking === m.id && (
+          <span className="reactpick" role="menu">
+            {REACTIONS.map(e => (
+              <button key={e} type="button" role="menuitem" onClick={() => toggleReaction(m.id, e)}>{e}</button>
+            ))}
+          </span>
+        )}
+      </span>
+    </div>
+  );
 
   return (
     <div className="stack chat">
@@ -127,6 +172,7 @@ export default function Chat() {
               {del_(m)}
             </div>
             {text_(m.body)}
+            {react_(m)}
           </div>
         ) : m.kind === 'announce' ? (
           <div key={m.id} className="msg announce">
@@ -136,6 +182,7 @@ export default function Chat() {
               {del_(m)}
             </div>
             {text_(m.body)}
+            {react_(m)}
           </div>
         ) : (
           <div key={m.id} className={'msg auto ' + m.kind}>
@@ -144,6 +191,7 @@ export default function Chat() {
               <span>{when(m.created_at)}</span>
               {m.corrected && <span className="tag">corrected</span>}
             </div>
+            {react_(m)}
           </div>
         ))}
       </div>

@@ -9,6 +9,9 @@ const ChatCtx = createContext(null);
 export const useChat = () => useContext(ChatCtx);
 
 const LIMIT = 300;
+// Must match the emoji check on message_reactions in supabase/schema.sql.
+export const REACTIONS = ['👍', '👎', '😂', '❤️', '🔥', '😮', '😢'];
+const sameReaction = (a, b) => a.message_id === b.message_id && a.user_id === b.user_id && a.emoji === b.emoji;
 const ls = {
   get: k => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} }
@@ -22,6 +25,7 @@ export function ChatProvider({ children }) {
   const [lastRead, setLastRead] = useState(0);
   const [muted, setMutedState] = useState(() => ls.get('alertsMuted') === '1');
   const [people, setPeople] = useState([]);   // [{ id, name, color }] for names and @mentions
+  const [reactions, setReactions] = useState([]);   // message_reactions rows for the event
   const listeners = useRef(new Set());   // live-insert callbacks (Alerts)
 
   const setMuted = v => { setMutedState(v); ls.set('alertsMuted', v ? '1' : '0'); };
@@ -35,8 +39,15 @@ export function ChatProvider({ children }) {
     setPeople((ps || []).map(p => ({ id: p.id, name: p.display_name, color: color[p.team_id] })));
   }
 
+  async function loadReactions() {
+    const { data, error } = await supabase.from('message_reactions')
+      .select('message_id, user_id, emoji').eq('event_id', evt);
+    if (!error) setReactions(data);
+  }
+
   async function load() {
     loadPeople();
+    loadReactions();
     const { data, error } = await supabase.from('messages').select('*')
       .eq('event_id', evt).order('created_at', { ascending: false }).limit(LIMIT);
     if (error) return;
@@ -51,7 +62,7 @@ export function ChatProvider({ children }) {
   }
 
   useEffect(() => {
-    if (!evt) { setMessages([]); return; }
+    if (!evt) { setMessages([]); setReactions([]); return; }
     load();
     const ch = supabase.channel('chat-' + evt)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `event_id=eq.${evt}` },
@@ -64,6 +75,10 @@ export function ChatProvider({ children }) {
       // DELETE payloads carry only the id and can't be filtered by event.
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' },
         ({ old }) => setMessages(prev => prev.filter(m => m.id !== old?.id)))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reactions', filter: `event_id=eq.${evt}` },
+        ({ new: row }) => setReactions(prev => prev.some(r => sameReaction(r, row)) ? prev : [...prev, row]))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message_reactions' },
+        ({ old }) => old && setReactions(prev => prev.filter(r => !sameReaction(r, old))))
       .subscribe();
     // Catch up on anything missed while the phone was asleep.
     const onVisible = () => { if (!document.hidden) load(); };
@@ -93,10 +108,25 @@ export function ChatProvider({ children }) {
     setMessages(prev => prev.filter(m => m.id !== id));
   }
 
+  // Add or take back my reaction. Shows right away; undone if the server refuses.
+  async function react(messageId, emoji) {
+    const row = { message_id: messageId, user_id: me, emoji };
+    const had = reactions.some(r => sameReaction(r, row));
+    setReactions(prev => had ? prev.filter(r => !sameReaction(r, row)) : [...prev, row]);
+    const { error } = had
+      ? await supabase.from('message_reactions').delete()
+          .eq('message_id', messageId).eq('user_id', me).eq('emoji', emoji)
+      : await supabase.from('message_reactions').insert({ ...row, event_id: evt });
+    if (error) {
+      setReactions(prev => had ? [...prev, row] : prev.filter(r => !sameReaction(r, row)));
+      throw error;
+    }
+  }
+
   const onLiveInsert = fn => { listeners.current.add(fn); return () => listeners.current.delete(fn); };
 
   return (
-    <ChatCtx.Provider value={{ messages: visible, people, unread, markRead, send, remove, onLiveInsert, muted, setMuted }}>
+    <ChatCtx.Provider value={{ messages: visible, people, reactions, react, unread, markRead, send, remove, onLiveInsert, muted, setMuted }}>
       {children}
     </ChatCtx.Provider>
   );
