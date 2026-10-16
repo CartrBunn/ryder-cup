@@ -35,7 +35,7 @@ export function winProbability({ up = 0, played = 0, holesCount = 18, aHcp = 0, 
   // allowance leaves uncompensated is the real edge; a 0% allowance leaves it all.
   const gap = skillDiff ?? (aHcp - bHcp);
   const receiverSign = strokeMap?.receiver === 'A' ? 1 : strokeMap?.receiver === 'B' ? -1 : 0;
-  const strokesGiven = Math.abs(Math.round(strokeMap?.diff ?? 0));
+  const strokesGiven = strokeMap?.strokes ?? Math.round(Math.abs(strokeMap?.diff ?? 0));
   const avgEdge = (gap - receiverSign * strokesGiven) / (holesCount || 18);
 
   // Per-hole three-way split.

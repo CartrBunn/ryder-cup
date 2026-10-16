@@ -23,11 +23,14 @@ export function allocateStrokes(strokesToGive, holes) {
 export function matchStrokeMap(sideAHcp, sideBHcp, holes) {
   const diff = round1(sideAHcp - sideBHcp);
   const zero = {}; holes.forEach(h => { zero[h.number] = 0; });
-  if (diff === 0) return { receiver: null, diff: 0, aStrokes: zero, bStrokes: zero };
+  if (diff === 0) return { receiver: null, diff: 0, strokes: 0, aStrokes: zero, bStrokes: zero };
   const receiver = diff > 0 ? 'A' : 'B';         // higher handicap receives
   const alloc = allocateStrokes(diff, holes);
+  // Whole strokes actually given — rounded on the magnitude, same as allocateStrokes, so a
+  // -2.5 gap is 3 strokes (Math.round(-2.5) would say 2).
+  const strokes = Math.round(Math.abs(diff));
   return {
-    receiver, diff,
+    receiver, diff, strokes,
     aStrokes: receiver === 'A' ? alloc : zero,
     bStrokes: receiver === 'B' ? alloc : zero
   };

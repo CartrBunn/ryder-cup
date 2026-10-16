@@ -223,7 +223,7 @@ export default function ScoreEntry() {
       </div>
       {computed.strokeMap.receiver && (
         <p className="muted small">
-          {computed.strokeMap.receiver === 'A' ? nameA : nameB} gets {Math.abs(Math.round(computed.strokeMap.diff))} stroke(s)
+          {computed.strokeMap.receiver === 'A' ? nameA : nameB} gets {computed.strokeMap.strokes} stroke(s)
         </p>
       )}
       {match.start_hole && <p className="muted small">Shotgun start · begins on hole {match.start_hole}</p>}
