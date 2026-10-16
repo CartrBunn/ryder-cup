@@ -176,9 +176,9 @@ export default function Chat() {
 
       {push && push !== 'unsupported' && (
         <div className="pushrow">
-          {push === 'on' && <><span>📲 Phone notifications are on for results, announcements and @mentions.</span>
+          {push === 'on' && <><span>📲 Phone notifications are on for all chat messages, results and announcements.</span>
             <button className="mini" disabled={pushBusy} onClick={togglePush}>Turn off</button></>}
-          {push === 'off' && <><span>Get results, announcements and @mentions on your phone, even when the app is closed.</span>
+          {push === 'off' && <><span>Get every chat message, result and announcement on your phone, even when the app is closed.</span>
             <button className="mini" disabled={pushBusy} onClick={togglePush}>Turn on notifications</button></>}
           {push === 'blocked' && <span>Notifications are blocked for this site. Allow them in your browser settings to get them on your phone.</span>}
           {push === 'install' && <span>To get notifications on your iPhone: tap Share, then <b>Add to Home Screen</b>, open the app from there, and turn them on on this page.</span>}

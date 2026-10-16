@@ -1,5 +1,5 @@
 // Sends push notifications for one chat post. Called by the notify_push trigger
-// (supabase/patch-2026-10-push.sql, patch-2026-10-chat-notify.sql) with just { id }. Deploy
+// (supabase/patch-2026-10-push.sql, patch-2026-10-chat-all.sql) with just { id }. Deploy
 // with "Verify JWT" off: the body is only an id, and the message is re-read and claimed here,
 // so a forged call can at most push a real post that was created in the last few minutes and
 // hasn't been pushed yet.
@@ -10,7 +10,7 @@
 //   announce                      everyone but the organizer who sent it
 //   pairings                      the players in that round, each told their own match
 //   startholes                    everyone; players are told their own starting hole
-//   chat                          only the people it @mentions
+//   chat                          everyone but the sender ("mentioned you" if @mentioned)
 //
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (your site's https URL).
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
@@ -84,8 +84,8 @@ Deno.serve(async req => {
     bodyFor = pid => pid === msg.author_id ? null : `📣 ${author}: ${msg.body}`;
   } else if (msg.kind === 'chat') {
     const mentioned = mentionedIds(msg.body, people);
-    if (!mentioned.size) return json({ sent: 0, skipped: true });
-    bodyFor = pid => mentioned.has(pid) && pid !== msg.author_id ? `💬 ${author} mentioned you: ${msg.body}` : null;
+    bodyFor = pid => pid === msg.author_id ? null
+      : mentioned.has(pid) ? `💬 ${author} mentioned you: ${msg.body}` : `💬 ${author}: ${msg.body}`;
   } else if (msg.kind === 'pairings' || msg.kind === 'startholes') {
     const roundId = String(msg.auto_key).split(':')[1];
     const [{ data: matches }, { data: round }] = await Promise.all([

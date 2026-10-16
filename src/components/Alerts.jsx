@@ -39,7 +39,7 @@ async function startHoleLine(row, me) {
 }
 
 // Pop-up alerts for automated posts, organizer announcements and starting holes, and
-// chat messages that @mention you. Bursts are combined into one, nothing pops up over the
+// every chat message. Bursts are combined into one, nothing pops up over the
 // scorecard (it waits until you leave the match page) or on the chat page (you're reading it),
 // and a muted device gets none.
 export default function Alerts() {
@@ -84,8 +84,9 @@ export default function Alerts() {
     const author = peopleRef.current.find(p => p.id === row.author_id)?.name || 'Someone';
     if (TOAST_KINDS.has(row.kind)) add(row.body);
     else if (row.kind === 'announce') add(`📣 ${author}: ${row.body}`);
-    else if (row.kind === 'chat' && mentionedIds(row.body, peopleRef.current).has(me)) {
-      add(`💬 ${author} mentioned you: ${row.body}`);
+    else if (row.kind === 'chat') {
+      add(mentionedIds(row.body, peopleRef.current).has(me)
+        ? `💬 ${author} mentioned you: ${row.body}` : `💬 ${author}: ${row.body}`);
     } else if (row.kind === 'pairings') {
       const line = await pairingLine(row.auto_key.split(':')[1], me).catch(() => null);
       if (line) add(line);
