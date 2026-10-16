@@ -156,3 +156,11 @@ export function plannedMatches({ teams, profiles, rounds, matches }) {
   const unplayed = rounds.reduce((s, r) => s + Math.max(0, plannedForRound(r) - madeInRound(r.id)), 0);
   return { plannedForRound, unplayed, plannedTotal: matches.length + unplayed };
 }
+
+// Points a team needs to win the Cup: 5 when the event is played on 9-hole courses, 10 on
+// 18. Goes by the longest course a round uses. 0 until a round has a course.
+export function cupTarget({ rounds, courses }) {
+  const holesOf = Object.fromEntries(courses.map(c => [c.id, c.holes?.length || 0]));
+  const holes = Math.max(0, ...rounds.map(r => holesOf[r.course_id] || 0));
+  return holes ? (holes <= 9 ? 5 : 10) : 0;
+}
