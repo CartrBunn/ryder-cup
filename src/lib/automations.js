@@ -2,7 +2,7 @@
 // (see loadEvent); AutoPoster.jsx syncs that list into the messages table. Each post has a
 // stable key so it happens once, and a sig (the result it describes) so a score correction
 // edits the post rather than adding a new one.
-import { computeEvent, cupTarget, plannedMatches, tournamentTotals } from './matchcompute';
+import { computeEvent, plannedMatches, tournamentTotals } from './matchcompute';
 import { matchState, orderedHoles } from './scoring';
 
 // Kinds that pop up for everyone when posted. 'pairings' pops up only for the players in
@@ -28,7 +28,7 @@ export function desiredPosts(data) {
 
   const ctxById = computeEvent(data);
   const totals = tournamentTotals(matches, ctxById);
-  const { plannedForRound } = plannedMatches(data);
+  const { plannedForRound, plannedTotal } = plannedMatches(data);
   const profilesById = Object.fromEntries(profiles.map(p => [p.id, p]));
   const teamsById = Object.fromEntries(teams.map(t => [t.id, t]));
   const names = ids => ids.map(id => profilesById[id]?.display_name || '—').join('/');
@@ -171,13 +171,15 @@ export function desiredPosts(data) {
     finals.push({ key: `final:${m.id}`, kind: 'final', sig: `${st.final}:${margin}`, body });
   }
 
-  // Cup won: the first team to the target points (5 on a 9-hole course, 10 on 18).
-  const target = cupTarget(data);
-  for (const t of [teamA, teamB]) {
-    if (target && (totals[t.id] || 0) >= target) {
-      clinch.push({ key: 'clinch', kind: 'clinch', sig: t.id,
-        body: `🏆🏆 ${t.name} wins the Cup with ${pts(totals[t.id])} points! · ${scoreLine}` });
-    }
+  // Cup result: only once every match in the tournament is played out, including matches
+  // not built yet. Most points wins; level is a tied Cup.
+  const done = plannedTotal && matches.length >= plannedTotal
+    && matches.every(m => ctxById[m.id]?.teamAId && ctxById[m.id]?.teamBId && ctxById[m.id].state.decided);
+  if (done) {
+    const winner = a > b ? teamA : b > a ? teamB : null;
+    clinch.push({ key: 'clinch', kind: 'clinch', sig: winner?.id || 'tie',
+      body: winner ? `🏆🏆 ${winner.name} wins the Cup ${pts(Math.max(a, b))}–${pts(Math.min(a, b))}!`
+        : `🤝 The Cup is tied ${pts(a)}–${pts(b)}!` });
   }
 
   // Posting order = the order they show up in chat.
