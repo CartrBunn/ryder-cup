@@ -59,6 +59,7 @@ export default function AutoPoster() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `event_id=eq.${evt}` }, () => schedule())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds', filter: `event_id=eq.${evt}` }, () => schedule())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `event_id=eq.${evt}` }, () => schedule())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${evt}` }, () => schedule())
       .subscribe();
     const onVisible = () => { if (!document.hidden) schedule(1000); };
     document.addEventListener('visibilitychange', onVisible);

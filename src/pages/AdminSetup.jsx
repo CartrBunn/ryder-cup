@@ -63,6 +63,13 @@ export default function AdminSetup() {
     }).eq('id', event.id);
     flash('Event saved');
   }
+  async function setHarassed(id) {
+    const { error } = await supabase.from('events').update({ harass_player_id: id || null }).eq('id', event.id);
+    if (error) { flash(error.message); return; }
+    setEvent({ ...event, harass_player_id: id || null });
+    const p = players.find(x => x.id === id);
+    flash(p ? `Harassing ${p.display_name}` : 'Harassment off');
+  }
   async function saveCourse() {
     const row = { ...course, event_id: event.id };
     const { data } = await supabase.from('courses').upsert(row).select().single();
@@ -337,6 +344,15 @@ export default function AdminSetup() {
         </div>
         <p className="muted small">To replace someone who can't make it: add the substitute above, then tap "Swap out" on the player leaving. The substitute takes their team and matchups.</p>
         <p className="muted small">Share the PIN with the player — they log in with the join code, their name, and this PIN.</p>
+      </section>
+
+      <section className="card">
+        <h3>Harass a player</h3>
+        <select value={event.harass_player_id || ''} onChange={e => setHarassed(e.target.value)}>
+          <option value="">— nobody —</option>
+          {players.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+        </select>
+        <p className="muted small">Every hole this player loses is posted to chat and sent to everyone: "🤡 Name has lost hole #X". Picking someone else takes down the old player's posts.</p>
       </section>
 
       <section className="card">

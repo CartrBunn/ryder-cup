@@ -20,6 +20,8 @@ create table if not exists events (
 -- For existing databases from before the coin toss was persisted (safe to re-run).
 -- Plain uuid, no FK: events is created before teams, so a cross-table FK here is awkward.
 alter table events add column if not exists draft_first_team_id uuid;
+-- The player the organizer is harassing: every hole they lose is posted (patch-2026-10-harass.sql).
+alter table events add column if not exists harass_player_id uuid;
 
 create table if not exists courses (
   id uuid primary key default gen_random_uuid(),

@@ -7,6 +7,7 @@
 // Who gets what:
 //   final / round / clinch / ace  everyone in the event
 //   projection                    everyone (a round's projected score every 3 holes)
+//   harass                        everyone (the organizer's chosen player lost a hole)
 //   announce                      everyone but the organizer who sent it
 //   pairings                      the players in that round, each told their own match
 //   startholes                    everyone; players are told their own starting hole
@@ -17,7 +18,7 @@
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const RESULT_KINDS = new Set(['final', 'round', 'clinch', 'ace', 'projection']);
+const RESULT_KINDS = new Set(['final', 'round', 'clinch', 'ace', 'projection', 'harass']);
 const FRESH_MS = 5 * 60 * 1000;   // ignore posts older than this (e.g. a replayed call)
 
 const json = (body: unknown, status = 200) =>

@@ -11,7 +11,7 @@ but dropping and re-running policies may error if they already exist — drop th
 ## Push notifications
 
 Phones get a notification for match finals, round results, the cup being clinched, aces,
-each round's projected score every 3 holes,
+each round's projected score every 3 holes, every hole lost by the player the organizer is harassing,
 their own "your match is set", organizer announcements (📣 in chat), the organizer's
 "Send starting holes" notice (Matchups page), and every chat message (except their own).
 Notifications are all or nothing: a phone that turns them on gets everything. Each phone opts in on the Chat page; iPhones must add the site to the Home Screen first.
@@ -20,7 +20,8 @@ One-time setup:
 
 1. Run `patch-2026-10-chat.sql`, then `patch-2026-10-push.sql`, then
    `patch-2026-10-chat-notify.sql`, then `patch-2026-10-projections.sql`, then
-   `patch-2026-10-reactions.sql` (emoji reactions in chat), then `patch-2026-10-chat-all.sql`, in the SQL editor.
+   `patch-2026-10-reactions.sql` (emoji reactions in chat), then `patch-2026-10-chat-all.sql`, then
+   `patch-2026-10-harass.sql` (the organizer's "harass a player" posts), in the SQL editor.
    (The push patch has this project's URL in its `notify_push` trigger — change it for another project.)
 2. Edge Functions → Deploy a new function → name it **send-push** → paste
    `functions/send-push/index.ts` → deploy. In its settings, turn **Verify JWT off**

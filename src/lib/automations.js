@@ -7,14 +7,14 @@ import { matchState, orderedHoles } from './scoring';
 
 // Kinds that pop up for everyone when posted. 'pairings' pops up only for the players in
 // that round (see Alerts.jsx); 'eagle' and 'draft' are chat-only.
-export const TOAST_KINDS = new Set(['final', 'round', 'clinch', 'ace', 'projection']);
+export const TOAST_KINDS = new Set(['final', 'round', 'clinch', 'ace', 'projection', 'harass']);
 
 // A round's projected score is posted each time its slowest match gets this many more holes in.
 const PROJECTION_EVERY = 3;
 
 // Kinds whose post is withdrawn (hidden) if the scores stop backing it up. Pairings and the
 // draft stay posted once they've happened.
-const RETRACTABLE = new Set(['final', 'round', 'clinch', 'ace', 'eagle']);
+const RETRACTABLE = new Set(['final', 'round', 'clinch', 'ace', 'eagle', 'harass']);
 
 const pts = n => {
   const whole = Math.floor(n), half = n - whole >= 0.5;
@@ -22,7 +22,7 @@ const pts = n => {
 };
 
 export function desiredPosts(data) {
-  const { teams, profiles, rounds, matches, courses, scores } = data;
+  const { event, teams, profiles, rounds, matches, courses, scores } = data;
   const [teamA, teamB] = teams;
   if (!teamA || !teamB) return [];
 
@@ -54,7 +54,8 @@ export function desiredPosts(data) {
     return c.teamAId === teamA.id ? [pa, pb] : [pb, pa];
   };
 
-  const draft = [], pairings = [], shots = [], projections = [], finals = [], roundsDone = [], clinch = [];
+  const draft = [], pairings = [], shots = [], harass = [], projections = [], finals = [], roundsDone = [], clinch = [];
+  const target = event?.harass_player_id && profilesById[event.harass_player_id];
 
   // Draft complete: everyone in the event is on a team (same rule as the Draft page).
   if (profiles.length && profiles.every(p => p.team_id)) {
@@ -155,6 +156,17 @@ export function desiredPosts(data) {
       }
     }
 
+    // Harassment: every hole the organizer's chosen player (their side) loses. Picking someone
+    // new withdraws the old player's posts.
+    const targetSide = target && (sidePlayers.A.includes(target.id) ? 'A' : sidePlayers.B.includes(target.id) ? 'B' : null);
+    if (targetSide) {
+      for (const r of c.state.results) {
+        if (!r.winner || r.winner === 'half' || r.winner === targetSide) continue;
+        harass.push({ key: `harass:${target.id}:${m.id}:${r.hole}`, kind: 'harass', sig: 'lost',
+          body: `🤡 ${target.display_name} has lost hole #${r.hole}` });
+      }
+    }
+
     // Match final.
     const st = c.state;
     if (!st.decided) continue;
@@ -183,7 +195,7 @@ export function desiredPosts(data) {
   }
 
   // Posting order = the order they show up in chat.
-  return [...draft, ...pairings, ...shots, ...projections, ...finals, ...roundsDone, ...clinch];
+  return [...draft, ...pairings, ...shots, ...harass, ...projections, ...finals, ...roundsDone, ...clinch];
 }
 
 // What to send to post_auto_message to bring the stored posts (rows with auto_key, auto_sig,
