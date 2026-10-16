@@ -198,6 +198,8 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .mentionlist button:last-child{border-bottom:none}
 .announcebtn{padding:0 10px;font-size:18px;line-height:1;border-width:1px;background:transparent}
 .announcebtn.on{background:var(--gold);border-color:var(--gold)}
+.msglist .msg{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.reacthint{margin:0;text-align:center}
 .reactbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px}
 .msg.auto .reactbar{justify-content:center}
 .reactchip{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border:1px solid var(--hair);border-radius:11px;background:var(--paper);font-size:13px;font-weight:600;line-height:18px;letter-spacing:0;color:var(--ink)}
@@ -205,10 +207,6 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .reactchip.on{border-color:var(--green);background:#e3ecd9}
 .reactchip.on span{color:var(--green)}
 .msg.mine .reactbar{justify-content:flex-end}
-.reactwrap{display:inline-flex;align-items:center;gap:4px}
-.msg.mine .reactwrap{flex-direction:row-reverse}
-.reactadd{padding:1px 6px;border:1px dashed transparent;border-radius:11px;background:none;font-size:12px;font-weight:600;line-height:18px;color:var(--muted);opacity:.55}
-.reactadd:hover,.reactadd[aria-expanded="true"]{opacity:1;background:none;border-color:var(--hair)}
 .reactpick{display:inline-flex;flex-wrap:wrap;gap:2px;padding:2px 4px;background:var(--paper);border:1px solid var(--green);border-radius:16px;box-shadow:0 2px 8px rgba(12,74,53,.15)}
 .reactpick button{padding:2px 4px;border:none;border-radius:50%;background:none;font-size:20px;line-height:1.2}
 .reactpick button:hover{background:#ece8cf;transform:scale(1.15)}

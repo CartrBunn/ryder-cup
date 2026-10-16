@@ -5,6 +5,7 @@ import { disablePush, enablePush, pushStatus } from '../lib/push';
 import { splitMentions } from '../lib/mentions';
 
 const MAX = 500;
+const HOLD_MS = 450;
 
 function when(iso) {
   const d = new Date(iso);
@@ -32,6 +33,7 @@ export default function Chat() {
   const [push, setPush] = useState(null);       // see pushStatus()
   const [pushBusy, setPushBusy] = useState(false);
   const [picking, setPicking] = useState(null);   // message id with the emoji picker open
+  const hold = useRef(null);   // pending press-and-hold: { timer, x, y }
 
   const me = realProfile.id;
   const isOrganizer = realProfile.role === 'organizer';
@@ -48,10 +50,35 @@ export default function Chat() {
   // Close the picker on a tap anywhere else.
   useEffect(() => {
     if (!picking) return;
-    const close = e => { if (!e.target.closest('.reactpick, .reactadd')) setPicking(null); };
+    const close = e => { if (!e.target.closest('.reactpick')) setPicking(null); };
+    listRef.current?.querySelector('.reactpick')?.scrollIntoView({ block: 'nearest' });
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [picking]);
+
+  // Press and hold a message (or right-click it) to react. Presses on buttons, and presses
+  // that turn into a scroll, don't count.
+  const cancelHold = () => { clearTimeout(hold.current?.timer); hold.current = null; };
+  const holdable = id => ({
+    onPointerDown: e => {
+      if (e.button !== 0 || e.target.closest('button')) return;
+      cancelHold();
+      hold.current = { x: e.clientX, y: e.clientY, timer: setTimeout(() => {
+        hold.current = null; setPicking(id); navigator.vibrate?.(10);
+      }, HOLD_MS) };
+    },
+    onPointerMove: e => {
+      const h = hold.current;
+      if (h && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 10) cancelHold();
+    },
+    onPointerUp: cancelHold,
+    onPointerCancel: cancelHold,
+    onPointerLeave: cancelHold,
+    onContextMenu: e => {
+      if (e.target.closest('button')) return;
+      e.preventDefault(); cancelHold(); setPicking(id);
+    }
+  });
 
   async function toggleReaction(id, emoji) {
     setPicking(null); setErr('');
@@ -117,7 +144,7 @@ export default function Chat() {
   const del_ = m => canDelete(m) &&
     <button className="btn-icon" onClick={() => del(m.id)} aria-label="Delete">✕</button>;
   const names = ids => ids.map(id => id === me ? 'You' : byId[id]?.name || 'Someone').join(', ');
-  const react_ = m => (
+  const reactbar = m => (
     <div className="reactbar">
       {(reactionsBy[m.id] || []).map(({ emoji, users }) => (
         <button key={emoji} type="button" className={'reactchip' + (users.includes(me) ? ' on' : '')}
@@ -126,19 +153,16 @@ export default function Chat() {
           {emoji}<span>{users.length}</span>
         </button>
       ))}
-      <span className="reactwrap">
-        <button type="button" className="reactadd" aria-label="Add reaction" aria-expanded={picking === m.id}
-          onClick={() => setPicking(p => p === m.id ? null : m.id)}>☺+</button>
-        {picking === m.id && (
-          <span className="reactpick" role="menu">
-            {REACTIONS.map(e => (
-              <button key={e} type="button" role="menuitem" onClick={() => toggleReaction(m.id, e)}>{e}</button>
-            ))}
-          </span>
-        )}
-      </span>
+      {picking === m.id && (
+        <span className="reactpick" role="menu" aria-label="React">
+          {REACTIONS.map(e => (
+            <button key={e} type="button" role="menuitem" onClick={() => toggleReaction(m.id, e)}>{e}</button>
+          ))}
+        </span>
+      )}
     </div>
   );
+  const react_ = m => (reactionsBy[m.id] || picking === m.id) && reactbar(m);
 
   return (
     <div className="stack chat">
@@ -164,7 +188,7 @@ export default function Chat() {
       <div className="msglist" ref={listRef}>
         {messages.length === 0 && <p className="muted">No messages yet. Say something!</p>}
         {messages.map(m => m.kind === 'chat' ? (
-          <div key={m.id} className={'msg' + (m.author_id === me ? ' mine' : '')}
+          <div key={m.id} className={'msg' + (m.author_id === me ? ' mine' : '')} {...holdable(m.id)}
             style={{ '--team': byId[m.author_id]?.color }}>
             <div className="msgmeta">
               <span className="msgname">{byId[m.author_id]?.name || 'Someone'}</span>
@@ -175,7 +199,7 @@ export default function Chat() {
             {react_(m)}
           </div>
         ) : m.kind === 'announce' ? (
-          <div key={m.id} className="msg announce">
+          <div key={m.id} className="msg announce" {...holdable(m.id)}>
             <div className="msgmeta">
               <span className="msgname">📣 Announcement · {byId[m.author_id]?.name || 'Organizer'}</span>
               <span>{when(m.created_at)}</span>
@@ -185,7 +209,7 @@ export default function Chat() {
             {react_(m)}
           </div>
         ) : (
-          <div key={m.id} className={'msg auto ' + m.kind}>
+          <div key={m.id} className={'msg auto ' + m.kind} {...holdable(m.id)}>
             <div className="msgtext">{m.body}</div>
             <div className="msgmeta">
               <span>{when(m.created_at)}</span>
@@ -194,6 +218,7 @@ export default function Chat() {
             {react_(m)}
           </div>
         ))}
+        {messages.length > 0 && !reactions.length && <p className="muted small reacthint">Press and hold a message to react.</p>}
       </div>
 
       <form className="composer" onSubmit={submit}>
