@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { computeMatch } from '../lib/matchcompute';
 import { orderedHoles } from '../lib/scoring';
+import { metersToYards, yardsBetween } from '../lib/yardage';
 
 const SAVE_DELAY = 400;     // ms of typing quiet before a hole is written
 const ACE_SAVE_DELAY = 2500;   // ms before a lone "1" is written (might be 10-19)
@@ -63,6 +64,50 @@ async function flush(s, matchId, key) {
   if (job.v == null) delete s.rowIds[key]; else s.rowIds[key] = res.data.id;
   if (s.queue[key]) return flush(s, matchId, key);  // a newer value arrived while this one was in flight
   s.listener?.({ type: 'saved' });
+}
+
+// Yards from this phone to the green of the hole being played. The hole is the first one in
+// play order not yet scored by both sides; ‹ › step to another (e.g. scores entered late).
+// GPS is only switched on while the shown hole has a green set in Setup.
+function Yardage({ holes, gross }) {
+  const auto = holes.find(h => gross.A[h.number] == null || gross.B[h.number] == null) || holes[holes.length - 1];
+  const [picked, setPicked] = useState(null);
+  const [fix, setFix] = useState(null);       // { lat, lng, acc } from the phone
+  const [gpsErr, setGpsErr] = useState('');
+  useEffect(() => { setPicked(null); }, [auto?.number]);   // follow along once a hole is scored
+
+  const hole = holes.find(h => h.number === picked) || auto;
+  const green = hole?.green;
+  const on = !!green;
+  useEffect(() => {
+    if (!on) return;
+    if (!navigator.geolocation) { setGpsErr('No location on this device'); return; }
+    const watch = navigator.geolocation.watchPosition(
+      pos => { setGpsErr(''); setFix({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }); },
+      err => setGpsErr(err.code === err.PERMISSION_DENIED ? 'Location is off — allow it to see yards' : 'Finding you…'),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    return () => navigator.geolocation.clearWatch(watch);
+  }, [on]);
+
+  if (!holes.some(h => h.green)) return null;
+  const idx = holes.indexOf(hole);
+  const step = d => setPicked(holes[(idx + d + holes.length) % holes.length].number);
+  const yards = green && fix ? Math.round(yardsBetween(fix, green)) : null;
+  const plusMinus = fix && fix.acc > 10 ? Math.round(metersToYards(fix.acc)) : 0;   // only flag a weak fix
+
+  return (
+    <div className="yardage card">
+      <button className="mini" onClick={() => step(-1)} aria-label="Previous hole">‹</button>
+      <div>
+        <div className="yhole">Hole {hole.number} · Par {hole.par}</div>
+        {!green ? <div className="muted small">No green set for this hole</div>
+          : yards == null ? <div className="muted small">{gpsErr || 'Finding you…'}</div>
+          : <div><span className="yds">{yards}</span> <span className="yunit">yds to green</span>
+              {plusMinus > 0 && <span className="muted small"> ±{plusMinus}</span>}</div>}
+      </div>
+      <button className="mini" onClick={() => step(1)} aria-label="Next hole">›</button>
+    </div>
+  );
 }
 
 export default function ScoreEntry() {
@@ -218,6 +263,7 @@ export default function ScoreEntry() {
 
   return (
     <div className="stack">
+      <Yardage holes={holes} gross={gross} />
       <div className="scorehead">
         <div>{nameOf(match.side_a_players)}</div>
         <div className="live">{computed.state.status}</div>

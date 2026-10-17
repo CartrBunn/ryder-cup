@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { supabase, createTempClient } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { playerCreds } from '../lib/playerAuth';
+import { formatLatLng, parseLatLng } from '../lib/yardage';
 
 const makeHoles = n => Array.from({ length: n }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
 const DEFAULT_HOLES = makeHoles(18);
@@ -210,6 +211,30 @@ export default function AdminSetup() {
     return { ...c, holes };
   });
 
+  // A hole's green, for the yardage shown on the score card. Typed or pasted text is read
+  // when the field loses focus; "Here" uses this phone's location (stand on the green).
+  const setGreen = (i, green) => setCourse(c => {
+    const holes = c.holes.map((h, idx) => {
+      if (idx !== i) return h;
+      const { green: _, ...rest } = h;
+      return green ? { ...rest, green } : rest;
+    });
+    return { ...c, holes };
+  });
+  function greenFromText(i, text) {
+    if (!text.trim()) return setGreen(i, null);
+    const p = parseLatLng(text);
+    if (p) setGreen(i, p);
+    else flash(`Hole ${i + 1}: paste coordinates like 43.0356, -90.6584`);
+  }
+  function greenFromHere(i) {
+    if (!navigator.geolocation) return flash('This device has no location');
+    navigator.geolocation.getCurrentPosition(
+      pos => setGreen(i, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      err => flash(`Couldn't get your location: ${err.message}`),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  }
+
   // Switch between a 9- and 18-hole course, preserving any edited pars/stroke indexes:
   // keep the first n holes when shrinking, append defaults when growing.
   const setHoleCount = n => setCourse(c => {
@@ -253,18 +278,32 @@ export default function AdminSetup() {
           <button className={course.holes.length === 9 ? 'primary' : ''} onClick={() => setHoleCount(9)}>9</button>
           <button className={course.holes.length === 18 ? 'primary' : ''} onClick={() => setHoleCount(18)}>18</button>
         </div>
-        <table className="scorecard">
-          <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th></tr></thead>
-          <tbody>
-            {course.holes.map((h, i) => (
-              <tr key={h.number}>
-                <td>{h.number}</td>
-                <td><input className="hole" type="number" value={h.par} onChange={e => setHole(i, 'par', e.target.value)} /></td>
-                <td><input className="hole" type="number" value={h.strokeIndex} onChange={e => setHole(i, 'strokeIndex', e.target.value)} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table className="scorecard">
+            <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th><th>Green</th></tr></thead>
+            <tbody>
+              {course.holes.map((h, i) => (
+                <tr key={h.number}>
+                  <td>{h.number}</td>
+                  <td><input className="hole" type="number" value={h.par} onChange={e => setHole(i, 'par', e.target.value)} /></td>
+                  <td><input className="hole" type="number" value={h.strokeIndex} onChange={e => setHole(i, 'strokeIndex', e.target.value)} /></td>
+                  <td>
+                    <div className="greenpin">
+                      {/* Remounts when the green changes so "Here" shows its coordinates. */}
+                      <input key={formatLatLng(h.green)} defaultValue={formatLatLng(h.green)} placeholder="lat, lng"
+                        onBlur={e => greenFromText(i, e.target.value)} />
+                      <button className="mini" onClick={() => greenFromHere(i)}>Here</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted small">
+          Green: long-press the middle of the green in Google Maps and paste the coordinates,
+          or stand on it and tap Here. Players then see yards to the green on their card.
+        </p>
         <button className="primary" onClick={saveCourse}>Save course</button>
       </section>
 
