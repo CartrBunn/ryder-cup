@@ -211,29 +211,39 @@ export default function AdminSetup() {
     return { ...c, holes };
   });
 
-  // A hole's green, for the yardage shown on the score card. Typed or pasted text is read
-  // when the field loses focus; "Here" uses this phone's location (stand on the green).
-  const setGreen = (i, green) => setCourse(c => {
+  // A hole's tee or green ('tee' | 'green'), for the yardages shown on the score card. Typed
+  // or pasted text is read when the field loses focus; "Here" uses this phone's location.
+  const setPoint = (i, key, p) => setCourse(c => {
     const holes = c.holes.map((h, idx) => {
       if (idx !== i) return h;
-      const { green: _, ...rest } = h;
-      return green ? { ...rest, green } : rest;
+      const { [key]: _, ...rest } = h;
+      return p ? { ...rest, [key]: p } : rest;
     });
     return { ...c, holes };
   });
-  function greenFromText(i, text) {
-    if (!text.trim()) return setGreen(i, null);
+  function pointFromText(i, key, text) {
+    if (!text.trim()) return setPoint(i, key, null);
     const p = parseLatLng(text);
-    if (p) setGreen(i, p);
-    else flash(`Hole ${i + 1}: paste coordinates like 43.0356, -90.6584`);
+    if (p) setPoint(i, key, p);
+    else flash(`Hole ${i + 1} ${key}: paste coordinates like 43.0356, -90.6584`);
   }
-  function greenFromHere(i) {
+  function pointFromHere(i, key) {
     if (!navigator.geolocation) return flash('This device has no location');
     navigator.geolocation.getCurrentPosition(
-      pos => setGreen(i, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      pos => setPoint(i, key, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
       err => flash(`Couldn't get your location: ${err.message}`),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   }
+  // Remounts when the point changes so "Here" shows its coordinates.
+  const pointCell = (h, i, key) => (
+    <td>
+      <div className="greenpin">
+        <input key={formatLatLng(h[key])} defaultValue={formatLatLng(h[key])} placeholder="lat, lng"
+          onBlur={e => pointFromText(i, key, e.target.value)} />
+        <button className="mini" onClick={() => pointFromHere(i, key)}>Here</button>
+      </div>
+    </td>
+  );
 
   // Switch between a 9- and 18-hole course, preserving any edited pars/stroke indexes:
   // keep the first n holes when shrinking, append defaults when growing.
@@ -280,29 +290,24 @@ export default function AdminSetup() {
         </div>
         <div className="table-scroll">
           <table className="scorecard">
-            <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th><th>Green</th></tr></thead>
+            <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th><th>Tee</th><th>Green</th></tr></thead>
             <tbody>
               {course.holes.map((h, i) => (
                 <tr key={h.number}>
                   <td>{h.number}</td>
                   <td><input className="hole" type="number" value={h.par} onChange={e => setHole(i, 'par', e.target.value)} /></td>
                   <td><input className="hole" type="number" value={h.strokeIndex} onChange={e => setHole(i, 'strokeIndex', e.target.value)} /></td>
-                  <td>
-                    <div className="greenpin">
-                      {/* Remounts when the green changes so "Here" shows its coordinates. */}
-                      <input key={formatLatLng(h.green)} defaultValue={formatLatLng(h.green)} placeholder="lat, lng"
-                        onBlur={e => greenFromText(i, e.target.value)} />
-                      <button className="mini" onClick={() => greenFromHere(i)}>Here</button>
-                    </div>
-                  </td>
+                  {pointCell(h, i, 'tee')}
+                  {pointCell(h, i, 'green')}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <p className="muted small">
-          Green: long-press the middle of the green in Google Maps and paste the coordinates,
-          or stand on it and tap Here. Players then see yards to the green on their card.
+          Tee and green: long-press the spot in Google Maps (the middle of the green) and paste
+          the coordinates, or stand on it and tap Here. Players then see yards to the green and
+          from the tee on their card.
         </p>
         <button className="primary" onClick={saveCourse}>Save course</button>
       </section>
