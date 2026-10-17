@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { supabase, createTempClient } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { playerCreds } from '../lib/playerAuth';
-import { formatLatLng, parseLatLng } from '../lib/yardage';
+import { bestFix, formatLatLng, metersToYards, parseLatLng } from '../lib/yardage';
 
 const makeHoles = n => Array.from({ length: n }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
 const DEFAULT_HOLES = makeHoles(18);
@@ -35,6 +35,7 @@ export default function AdminSetup() {
   const [swapIn, setSwapIn] = useState('');
   const [handicaps, setHandicaps] = useState({});
   const [names, setNames] = useState({});
+  const [locating, setLocating] = useState(null);   // { i, key, acc } while "Here" waits for GPS
 
   async function load() {
     if (!profile?.event_id) return;
@@ -54,7 +55,7 @@ export default function AdminSetup() {
   if (!profile?.event_id) return <Navigate to="/start" replace />;
   if (!event) return <div className="center">Loading setup…</div>;
 
-  const flash = m => { setMsg(m); setTimeout(() => setMsg(''), 1500); };
+  const flash = (m, ms = 1500) => { setMsg(m); setTimeout(() => setMsg(cur => (cur === m ? '' : cur)), ms); };
 
   async function saveEvent() {
     await supabase.from('events').update({
@@ -225,14 +226,32 @@ export default function AdminSetup() {
     if (!text.trim()) return setPoint(i, key, null);
     const p = parseLatLng(text);
     if (p) setPoint(i, key, p);
-    else flash(`Hole ${i + 1} ${key}: paste coordinates like 43.0356, -90.6584`);
+    else flash(`Hole ${i + 1} ${key}: paste coordinates like 43.0356, -90.6584 or 43°02'08"N 90°39'30"W`, 4000);
   }
-  function pointFromHere(i, key) {
+  // "Here" waits for GPS to settle (see bestFix) and refuses a reading still too rough to
+  // measure a shot from — a phone's first one can be 50+ yards off.
+  const WORST_FIX_M = 15;
+  async function pointFromHere(i, key) {
     if (!navigator.geolocation) return flash('This device has no location');
-    navigator.geolocation.getCurrentPosition(
-      pos => setPoint(i, key, { lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      err => flash(`Couldn't get your location: ${err.message}`),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    const label = `Hole ${i + 1} ${key}`;
+    setLocating({ i, key, acc: null });
+    let fix;
+    try {
+      fix = await bestFix(navigator.geolocation,
+        { onProgress: m => setLocating({ i, key, acc: Math.round(metersToYards(m)) }) });
+    } catch (err) {
+      return flash(`Couldn't get your location: ${err.message}`, 4000);
+    } finally {
+      setLocating(null);
+    }
+    const yds = Math.round(metersToYards(fix.acc));
+    if (fix.acc > WORST_FIX_M) {
+      return flash(fix.acc > 200
+        ? `${label} not set: location is only rough (±${yds} yds). Turn on Precise Location for this browser in the phone's settings.`
+        : `${label} not set: GPS only got to ±${yds} yds. Try again in the open, away from trees.`, 7000);
+    }
+    setPoint(i, key, { lat: fix.lat, lng: fix.lng });
+    flash(`${label} set (±${yds} yds) — remember to save the course`, 3000);
   }
   // Remounts when the point changes so "Here" shows its coordinates.
   const pointCell = (h, i, key) => (
@@ -240,7 +259,9 @@ export default function AdminSetup() {
       <div className="greenpin">
         <input key={formatLatLng(h[key])} defaultValue={formatLatLng(h[key])} placeholder="lat, lng"
           onBlur={e => pointFromText(i, key, e.target.value)} />
-        <button className="mini" onClick={() => pointFromHere(i, key)}>Here</button>
+        <button className="mini" disabled={!!locating} onClick={() => pointFromHere(i, key)}>
+          {locating?.i === i && locating.key === key ? (locating.acc ? `±${locating.acc}…` : '…') : 'Here'}
+        </button>
       </div>
     </td>
   );
@@ -305,8 +326,9 @@ export default function AdminSetup() {
           </table>
         </div>
         <p className="muted small">
-          Tee and green: long-press the spot in Google Maps (the middle of the green) and paste
-          the coordinates, or stand on it and tap Here. Players then see yards to the green and
+          Tee and green: copy the spot's coordinates from Google Maps or Google Earth (the
+          middle of the green) and paste them — decimal or degrees/minutes/seconds both work —
+          or stand on it and tap Here. Players then see yards to the green and
           from the tee on their card.
         </p>
         <button className="primary" onClick={saveCourse}>Save course</button>
