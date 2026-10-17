@@ -69,17 +69,25 @@ async function flush(s, matchId, key) {
 // Yards from this phone to the green of the hole being played, and back to its tee (how far
 // you've hit it). The hole is the first one in play order not yet scored by both sides; ‹ ›
 // step to another (e.g. scores entered late). GPS is only switched on while the shown hole
-// has a tee or green set in Setup.
+// has a tee or green set in Setup, and not while the player has hidden the box (remembered on
+// this device) — hiding it saves battery.
+const YARDS_HIDDEN_KEY = 'yardsHidden';
+function readHidden() { try { return localStorage.getItem(YARDS_HIDDEN_KEY) === '1'; } catch { return false; } }
 function Yardage({ holes, gross }) {
   const auto = holes.find(h => gross.A[h.number] == null || gross.B[h.number] == null) || holes[holes.length - 1];
   const [picked, setPicked] = useState(null);
   const [fix, setFix] = useState(null);       // { lat, lng, acc } from the phone
   const [gpsErr, setGpsErr] = useState('');
+  const [hidden, setHidden] = useState(readHidden);
+  function toggle(h) {
+    setHidden(h);
+    try { localStorage.setItem(YARDS_HIDDEN_KEY, h ? '1' : '0'); } catch { /* still works this visit */ }
+  }
   useEffect(() => { setPicked(null); }, [auto?.number]);   // follow along once a hole is scored
 
   const hole = holes.find(h => h.number === picked) || auto;
   const green = hole?.green, tee = hole?.tee;
-  const on = !!(green || tee);
+  const on = !!(green || tee) && !hidden;
   useEffect(() => {
     if (!on) return;
     if (!navigator.geolocation) { setGpsErr('No location on this device'); return; }
@@ -91,6 +99,9 @@ function Yardage({ holes, gross }) {
   }, [on]);
 
   if (!holes.some(h => h.green || h.tee)) return null;
+  if (hidden) return (
+    <div className="yardage-off"><button className="mini" onClick={() => toggle(false)}>Show yards</button></div>
+  );
   const idx = holes.indexOf(hole);
   const step = d => setPicked(holes[(idx + d + holes.length) % holes.length].number);
   const yards = green && fix ? Math.round(yardsBetween(fix, green)) : null;
@@ -107,6 +118,7 @@ function Yardage({ holes, gross }) {
           : <div><span className="yds">{yards}</span> <span className="yunit">yds to green</span>
               {plusMinus > 0 && <span className="muted small"> ±{plusMinus}</span>}</div>}
         {fromTee != null && <div className="yfrom">{fromTee} yds from tee</div>}
+        <button className="linkish" onClick={() => toggle(true)}>Hide</button>
       </div>
       <button className="mini" onClick={() => step(1)} aria-label="Next hole">›</button>
     </div>
