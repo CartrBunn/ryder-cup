@@ -210,6 +210,8 @@ export default function ScoreEntry() {
   const nameOf = ids => ids.map(i => profilesById[i]?.display_name || '—').join(' / ');
   const nameA = bundle.teams.find(t => t.id === computed.teamAId)?.name || 'A';
   const nameB = bundle.teams.find(t => t.id === computed.teamBId)?.name || 'B';
+  const stroke = bundle.event.scoring_mode === 'stroke';
+  const total = side => Object.values(gross[side]).reduce((t, v) => t + Number(v), 0);
   const canEdit = ['organizer', 'captain'].includes(profile.role)
     || match.side_a_players.includes(profile.id)
     || match.side_b_players.includes(profile.id);
@@ -226,6 +228,7 @@ export default function ScoreEntry() {
           {computed.strokeMap.receiver === 'A' ? nameA : nameB} gets {computed.strokeMap.strokes} stroke(s)
         </p>
       )}
+      {stroke && <p className="muted small">Stroke play · lowest net total after all {holes.length} holes wins</p>}
       {match.start_hole && <p className="muted small">Shotgun start · begins on hole {match.start_hole}</p>}
       {!course && <p className="err">This round has no course set — ask the organizer to add one in Setup.</p>}
 
@@ -260,6 +263,19 @@ export default function ScoreEntry() {
               );
             })}
           </tbody>
+          {stroke && (
+            <tfoot>
+              <tr className="total">
+                <td>Tot</td>
+                <td className="dim">{holes.reduce((t, h) => t + h.par, 0)}</td>
+                <td>{total('A') || '–'}<span className="pop">net {computed.state.totalA}</span></td>
+                <td>{total('B') || '–'}<span className="pop">net {computed.state.totalB}</span></td>
+                <td className={'res ' + (computed.state.up > 0 ? 'A' : computed.state.up < 0 ? 'B' : 'half')}>
+                  {computed.state.played ? (computed.state.up === 0 ? 'AS' : Math.abs(computed.state.up)) : ''}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

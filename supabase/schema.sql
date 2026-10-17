@@ -22,6 +22,9 @@ create table if not exists events (
 alter table events add column if not exists draft_first_team_id uuid;
 -- The player the organizer is harassing: every hole they lose is posted (patch-2026-10-harass.sql).
 alter table events add column if not exists harass_player_id uuid;
+-- 'match' (win holes) or 'stroke' (lowest net total over the round) (patch-2026-10-scoring.sql).
+alter table events add column if not exists scoring_mode text not null default 'match'
+  check (scoring_mode in ('match','stroke'));
 
 create table if not exists courses (
   id uuid primary key default gen_random_uuid(),

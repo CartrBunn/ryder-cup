@@ -10,7 +10,16 @@
 const BASE_HALF = 0.42;   // typical single-hole halve rate in an even match
 const K = 1.5;            // how sharply a per-hole scoring edge tilts the split
 
+const HOLE_SD = 1.4;      // stroke play: spread of one hole's net difference between the sides
+
 function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+// Standard normal CDF (Abramowitz–Stegun erf approximation, plenty for a win %).
+function normCdf(z) {
+  const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
+  const erf = 1 - t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429)))) * Math.exp(-x * x);
+  return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
+}
 
 // Per-match outcome distribution.
 //   up        signed current lead (A ahead > 0, B ahead < 0), from matchState
@@ -19,11 +28,14 @@ function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
 //   aHcp/bHcp playing handicaps for the two sides (fallback skill gap)
 //   skillDiff raw (allowance-independent) handicap gap A − B; drives the edge
 //   strokeMap { receiver, diff, ... } from matchStrokeMap (strokes actually given)
-export function winProbability({ up = 0, played = 0, holesCount = 18, aHcp = 0, bHcp = 0, skillDiff, strokeMap }) {
+//   mode      'stroke' → `up` is a net-stroke lead and every hole is played out;
+//             anything else is match play (`up` in holes)
+export function winProbability({ up = 0, played = 0, holesCount = 18, aHcp = 0, bHcp = 0, skillDiff, strokeMap, mode }) {
   const remaining = Math.max(0, holesCount - played);
 
   // Match already over, or mathematically clinched — collapse to the certain result.
-  if (remaining <= 0 || Math.abs(up) > remaining) {
+  // (Stroke play is never clinched early: one bad hole can swing any lead.)
+  if (remaining <= 0 || (mode !== 'stroke' && Math.abs(up) > remaining)) {
     if (up > 0) return { pA: 1, pHalf: 0, pB: 0 };
     if (up < 0) return { pA: 0, pHalf: 0, pB: 1 };
     return { pA: 0, pHalf: 1, pB: 0 };
@@ -37,6 +49,16 @@ export function winProbability({ up = 0, played = 0, holesCount = 18, aHcp = 0, 
   const receiverSign = strokeMap?.receiver === 'A' ? 1 : strokeMap?.receiver === 'B' ? -1 : 0;
   const strokesGiven = strokeMap?.strokes ?? Math.round(Math.abs(strokeMap?.diff ?? 0));
   const avgEdge = (gap - receiverSign * strokesGiven) / (holesCount || 18);
+
+  // Stroke play: the final lead is the current one plus `remaining` independent hole
+  // differences (mean −avgEdge for A, spread HOLE_SD each) — close enough to normal.
+  // Totals are whole strokes, so a final lead inside ±½ is a tie.
+  if (mode === 'stroke') {
+    const mean = up - avgEdge * remaining, sd = HOLE_SD * Math.sqrt(remaining);
+    const pA = 1 - normCdf((0.5 - mean) / sd);
+    const pB = normCdf((-0.5 - mean) / sd);
+    return { pA, pHalf: Math.max(0, 1 - pA - pB), pB };
+  }
 
   // Per-hole three-way split.
   const pHalfHole = BASE_HALF;

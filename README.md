@@ -21,6 +21,16 @@ by each player's handicap.
    shows the live match status and updates the leaderboard. Hitting **Submit** locks the
    result.
 
+## Match play or stroke play (Setup → Basics → Scoring)
+
+- **Match play** (default): win holes on net score; the side that wins more holes takes
+  the match, and it ends early once it's decided (e.g. `3&2`).
+- **Stroke play**: every hole is played (9 or 18, whatever the course card has) and the
+  side with the lower net total takes the match.
+
+Either way a match is worth 1 point (½ each for a tie). Existing databases need
+`supabase/patch-2026-10-scoring.sql` run once.
+
 ## Handicap allowances (configurable in Setup)
 
 | Format          | Default allowance                          |
@@ -65,7 +75,7 @@ row-level-security policies in the schema, not by hiding the key.
 
 ```
 src/
-  lib/scoring.js        match-play engine (stroke allocation, hole winners, closeout)
+  lib/scoring.js        scoring engine (stroke allocation, match play + stroke play)
   lib/handicap.js       format allowances -> side handicaps
   lib/matchcompute.js   glue: DB rows -> engine -> team points
   pages/                Login, Signup, Lobby (leaderboard), ScoreEntry,

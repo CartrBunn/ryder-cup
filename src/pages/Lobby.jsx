@@ -36,7 +36,7 @@ export default function Lobby() {
   );
   if (!data) return <div className="center">Loading leaderboard…</div>;
 
-  const { teams, profiles, rounds, matches } = data;
+  const { event, teams, profiles, rounds, matches } = data;
   const profilesById = Object.fromEntries(profiles.map(p => [p.id, p]));
   const ctxById = computeEvent(data);
   const totals = tournamentTotals(matches, ctxById);
@@ -75,7 +75,7 @@ export default function Lobby() {
 
       {rounds.map(r => (
         <section key={r.id} className="round">
-          <div className="rhead"><span className="rname">{r.name}</span><span className="rsub">{r.format.replace('_',' ')}</span></div>
+          <div className="rhead"><span className="rname">{r.name}</span><span className="rsub">{r.format.replace('_',' ')}{event.scoring_mode === 'stroke' && ' · stroke play'}</span></div>
           {matches.filter(m => m.round_id === r.id)
             .sort((x, y) => (x.start_hole ?? 1) - (y.start_hole ?? 1) || x.seq - y.seq)
             .map(m => {

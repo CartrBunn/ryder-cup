@@ -1,6 +1,6 @@
 // Glue between stored rows and the pure scoring engine.
 import { sideHandicap } from './handicap';
-import { matchStrokeMap, matchState } from './scoring';
+import { matchStrokeMap, scoreMatch } from './scoring';
 import { winProbability } from './winprob';
 
 function ruleFor(format, event) {
@@ -41,13 +41,14 @@ export function computeMatch({ match, round, course, event, profilesById, scores
   const teamBId = profilesById[match.side_b_players[0]]?.team_id || null;
 
   const nameA = teamsById[teamAId]?.name || 'A', nameB = teamsById[teamBId]?.name || 'B';
-  const state = matchState({ holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
+  const mode = event.scoring_mode;
+  const state = scoreMatch(mode, { holes, grossA, grossB, aStrokes: sm.aStrokes, bStrokes: sm.bStrokes,
     startHole: match.start_hole, nameA, nameB });
 
   const winProb = state.final
     ? { pA: state.pointsA === 1 ? 1 : 0, pHalf: state.final === 'half' ? 1 : 0, pB: state.pointsB === 1 ? 1 : 0 }
     : winProbability({ up: state.up, played: state.played,
-        holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm });
+        holesCount: holes.length, aHcp, bHcp, skillDiff, strokeMap: sm, mode });
 
   return { state, strokeMap: sm, aHcp, bHcp, winProb, teamAId, teamBId };
 }

@@ -3,7 +3,7 @@
 // stable key so it happens once, and a sig (the result it describes) so a score correction
 // edits the post rather than adding a new one.
 import { computeEvent, plannedMatches, tournamentTotals } from './matchcompute';
-import { matchState, orderedHoles } from './scoring';
+import { scoreMatch, orderedHoles } from './scoring';
 
 // Kinds that pop up for everyone when posted. 'pairings' pops up only for the players in
 // that round (see Alerts.jsx); 'eagle' and 'draft' are chat-only.
@@ -92,7 +92,7 @@ export function desiredPosts(data) {
           const c = ctxById[m.id], g = grossOf(m.id);
           const upTo = new Set(orderedHoles(holes, m.start_hole).slice(0, mark).map(h => h.number));
           const pick = side => Object.fromEntries(Object.entries(g[side]).filter(([h]) => upTo.has(Number(h))));
-          const st = matchState({ holes, grossA: pick('A'), grossB: pick('B'),
+          const st = scoreMatch(event?.scoring_mode, { holes, grossA: pick('A'), grossB: pick('B'),
             aStrokes: c.strokeMap.aStrokes, bStrokes: c.strokeMap.bStrokes, startHole: m.start_hole });
           const [pa, pb] = standing(c, st);
           ra += pa; rb += pb;

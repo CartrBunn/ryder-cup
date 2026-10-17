@@ -59,7 +59,8 @@ export default function AdminSetup() {
     await supabase.from('events').update({
       name: event.name, join_code: event.join_code,
       singles_pct: event.singles_pct, altshot_pct: event.altshot_pct,
-      scramble_low_pct: event.scramble_low_pct, scramble_high_pct: event.scramble_high_pct
+      scramble_low_pct: event.scramble_low_pct, scramble_high_pct: event.scramble_high_pct,
+      scoring_mode: event.scoring_mode
     }).eq('id', event.id);
     flash('Event saved');
   }
@@ -235,6 +236,12 @@ export default function AdminSetup() {
           <label>Scramble low %<input type="number" value={event.scramble_low_pct} onChange={e => setEvent({ ...event, scramble_low_pct: +e.target.value })} /></label>
           <label>Scramble high %<input type="number" value={event.scramble_high_pct} onChange={e => setEvent({ ...event, scramble_high_pct: +e.target.value })} /></label>
         </div>
+        <label>Scoring
+          <select value={event.scoring_mode || 'match'} onChange={e => setEvent({ ...event, scoring_mode: e.target.value })}>
+            <option value="match">Match play — win the most holes</option>
+            <option value="stroke">Stroke play — lowest net total over the round</option>
+          </select>
+        </label>
         <button className="primary" onClick={saveEvent}>Save basics</button>
       </section>
 
