@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { supabase, createTempClient } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { playerCreds } from '../lib/playerAuth';
-import { bestFix, formatLatLng, metersToYards, parseLatLng } from '../lib/yardage';
+import { bestFix, formatLatLng, metersToYards, parseLatLng, yardsBetween } from '../lib/yardage';
 
 const makeHoles = n => Array.from({ length: n }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
 const DEFAULT_HOLES = makeHoles(18);
@@ -311,7 +311,7 @@ export default function AdminSetup() {
         </div>
         <div className="table-scroll">
           <table className="scorecard">
-            <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th><th>Tee</th><th>Green</th></tr></thead>
+            <thead><tr><th>Hole</th><th>Par</th><th>Stroke index</th><th>Tee</th><th>Green</th><th>Yds</th></tr></thead>
             <tbody>
               {course.holes.map((h, i) => (
                 <tr key={h.number}>
@@ -320,6 +320,7 @@ export default function AdminSetup() {
                   <td><input className="hole" type="number" value={h.strokeIndex} onChange={e => setHole(i, 'strokeIndex', e.target.value)} /></td>
                   {pointCell(h, i, 'tee')}
                   {pointCell(h, i, 'green')}
+                  <td className="dim">{h.tee && h.green ? Math.round(yardsBetween(h.tee, h.green)) : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -329,7 +330,8 @@ export default function AdminSetup() {
           Tee and green: copy the spot's coordinates from Google Maps or Google Earth (the
           middle of the green) and paste them — decimal or degrees/minutes/seconds both work —
           or stand on it and tap Here. Players then see yards to the green and
-          from the tee on their card.
+          from the tee on their card. Yds is middle of tee to middle of green — if it's far
+          from the scorecard, one of that hole's points is off.
         </p>
         <button className="primary" onClick={saveCourse}>Save course</button>
       </section>
