@@ -13,6 +13,7 @@ import StartEvent from './pages/StartEvent';
 import ResetPassword from './pages/ResetPassword';
 import Prizes from './pages/Prizes';
 import Chat from './pages/Chat';
+import Caddie from './pages/Caddie';
 import { ChatProvider, useChat } from './context/ChatContext';
 import AutoPoster from './components/AutoPoster';
 import Alerts from './components/Alerts';
@@ -117,6 +118,8 @@ export default function App() {
           <Route path="/prizes" element={<Protected><Prizes /></Protected>} />
           <Route path="/chat" element={<Protected><Chat /></Protected>} />
           <Route path="/matchups" element={<Protected need={['organizer','captain']}><Matchups /></Protected>} />
+          {/* Hidden: not linked from the nav — reachable only by this URL. */}
+          <Route path="/caddie-ed19b8ad" element={<Protected><Caddie /></Protected>} />
           <Route path="/admin" element={<Protected need={['organizer']}><AdminSetup /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -232,3 +232,15 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .gps.q2 .bars i:nth-child(-n+2){background:var(--gold)}
 .gps.q1 .bars i:nth-child(1){background:#9c2f22}
 .gps.q1{color:#9c2f22}
+
+/* Caddie (hidden matchup optimizer) */
+.caddie-now{border-left:4px solid var(--gold);background:var(--field);padding:10px 12px;margin:4px 0 12px;display:flex;flex-direction:column;gap:4px}
+.caddie-tag{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--green)}
+.caddie-h{margin:8px 0 4px;font-size:14px}
+.caddie-line{margin:0 0 10px}
+.caddie-n{width:16px;text-align:right}
+.caddie-line li{display:flex;gap:10px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--hair)}
+.caddie-ev{font-variant-numeric:tabular-nums;font-weight:700}.caddie-ev.up{color:var(--green)}.caddie-ev.down{color:#9c2f22}
+.caddie-opts li{padding:4px 0;border-bottom:1px solid var(--hair);flex-wrap:wrap}
+.caddie-table td,.caddie-table th{font-variant-numeric:tabular-nums}
+.caddie details{margin-top:6px}

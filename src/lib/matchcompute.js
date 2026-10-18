@@ -3,7 +3,7 @@ import { sideHandicap } from './handicap';
 import { matchStrokeMap, scoreMatch } from './scoring';
 import { winProbability } from './winprob';
 
-function ruleFor(format, event) {
+export function ruleFor(format, event) {
   if (format === 'singles') return { type: 'each', pct: event.singles_pct };
   if (format === 'alternate_shot') return { type: 'combined', pct: event.altshot_pct };
   return { type: 'weighted', low: event.scramble_low_pct, high: event.scramble_high_pct };
@@ -12,7 +12,7 @@ function ruleFor(format, event) {
 // Same combine shape but at full (100%) allowance — a raw measure of a side's skill,
 // independent of the event's stroke-allowance settings. Used only by the predictor,
 // so it still reads the handicaps even when allowances are dialed down to 0.
-function skillRuleFor(format) {
+export function skillRuleFor(format) {
   if (format === 'singles') return { type: 'each', pct: 100 };
   if (format === 'alternate_shot') return { type: 'combined', pct: 100 };
   return { type: 'weighted', low: 100, high: 100 };
