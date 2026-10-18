@@ -49,6 +49,19 @@ describe('planRound', () => {
     expect(big.exact).toBe(false);
   });
 
+  it('places every player on big teams, highest handicaps included', () => {
+    const big = n => [...Array(n)].map((_, i) => i * 2);
+    for (const format of ['singles', 'scramble']) {
+      const mine = team('M', big(18)), theirs = team('T', big(18).map(h => h + 1));
+      const plan = planRound({ format, event, holes, mine, theirs, pickerIsMe: k => k % 2 === 0 });
+      expect(new Set(plan.line.flatMap(m => m.mine)).size).toBe(18);
+      expect(plan.line.flatMap(m => m.theirs)).toContain('T18');
+      const g = gradeDraft({ format, event, holes, teamA: mine, teamB: theirs,
+        matches: plan.line.map(m => ({ side_a_players: m.mine, side_b_players: m.theirs })) });
+      expect(g.picks.every(p => !p.skipped)).toBe(true);
+    }
+  });
+
   it('builds a cheat sheet sorted by average value', () => {
     const rows = pairingTable({ format: 'singles', event: zero, holes, mine: team('M', [0, 20]), theirs: team('T', [10]) });
     expect(rows[0].mine).toEqual(['M1']);

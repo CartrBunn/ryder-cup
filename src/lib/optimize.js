@@ -5,15 +5,16 @@
 // pre-match win-probability model the leaderboard uses, as "my" expected points
 // (win = 1, halve = ½). We then solve the game by minimax: the team picking first assumes
 // the best reply, the replying team takes the best answer, and both play on optimally.
-// Rounds too big to solve exactly fall back to a one-move lookahead whose tail is the
-// average value of the players each side has left.
+// Rounds too big to solve exactly fall back to a one-move lookahead that values what's left
+// by how each remaining player fares, on average, against the other side's remaining players.
 import { sideHandicap } from './handicap';
 import { matchStrokeMap } from './scoring';
 import { winProbability } from './winprob';
 import { ruleFor, skillRuleFor } from './matchcompute';
 
 const BUDGET = 15_000_000;  // pairings examined before giving up on the exact solve
-const MAX_SIDE = 15;        // players per side that fit in the bitmask keys
+const EXACT_SIDE = 10;      // most players per side worth solving exactly (also fits the memo keys)
+const MAX_SIDE = 30;        // most players per side that fit in a 32-bit mask
 const OVER = Symbol('over-budget');
 
 const popcount = m => { let c = 0; while (m) { m &= m - 1; c++; } return c; };
@@ -41,28 +42,29 @@ export function matchValue({ format, event, holes, aHcps, bHcps }) {
   return { ev: p.pA + p.pHalf / 2, ...p, aHcp, bHcp, strokes: strokeMap.strokes, receiver: strokeMap.receiver };
 }
 
-// The game over a fixed roster: pairing values, the (exact or heuristic) value of any state,
+// The game over a fixed roster: pairing values, the (exact or estimated) value of any state,
 // and every side's ranked options from a state. States are bitmasks over mine / theirs.
 function solver({ format, event, holes, mine, theirs, pickerIsMe, startK }) {
   const n = format === 'singles' ? 1 : 2;
   const full = arr => (1 << arr.length) - 1;
   const startMy = full(mine), startOpp = full(theirs);
+  const hm = mine.map(p => Number(p.handicap) || 0), ht = theirs.map(p => Number(p.handicap) || 0);
 
-  const evCache = new Map();
+  const evCache = new Map();   // u -> (v -> value)
   const ev = (u, v) => {
-    const key = u * 65536 + v;
-    let x = evCache.get(key);
+    let row = evCache.get(u);
+    if (!row) evCache.set(u, row = new Map());
+    let x = row.get(v);
     if (x === undefined) {
-      x = matchValue({ format, event, holes,
-        aHcps: bitsOf(u).map(i => Number(mine[i].handicap) || 0),
-        bHcps: bitsOf(v).map(i => Number(theirs[i].handicap) || 0) }).ev;
-      evCache.set(key, x);
+      x = matchValue({ format, event, holes, aHcps: bitsOf(u).map(i => hm[i]), bHcps: bitsOf(v).map(i => ht[i]) }).ev;
+      row.set(v, x);
     }
     return x;
   };
   // Matches already made in this round's search state, recovered from how many are left.
   const kOf = my => startK + Math.round((mine.length - popcount(my)) / n);
   const sizes = (my, opp) => [Math.min(n, popcount(my)), Math.min(n, popcount(opp))];
+  const matchesLeft = (my, opp) => Math.min(Math.ceil(popcount(my) / n), Math.ceil(popcount(opp) / n));
 
   // Exact game value of a state (my expected points from here on), memoised on the masks.
   let work = 0;
@@ -90,31 +92,52 @@ function solver({ format, event, holes, mine, theirs, pickerIsMe, startK }) {
     return best;
   }
 
-  // Heuristic tail: matches left × the average value of every pairing still possible.
-  const tailMemo = new Map();
-  function tail(my, opp) {
-    if (!my || !opp) return 0;
-    const key = my * 65536 + opp;
-    const hit = tailMemo.get(key);
-    if (hit !== undefined) return hit;
-    const [sm, so] = sizes(my, opp);
-    const um = unitsOf(my, sm), uo = unitsOf(opp, so);
-    let sum = 0;
-    for (const u of um) for (const v of uo) sum += ev(u, v);
-    const matchesLeft = Math.min(Math.ceil(popcount(my) / n), Math.ceil(popcount(opp) / n));
-    const x = matchesLeft * sum / (um.length * uo.length);
-    tailMemo.set(key, x);
-    return x;
+  let isExact = mine.length <= EXACT_SIDE && theirs.length <= EXACT_SIDE;
+  if (isExact) {
+    try { exact(startMy, startOpp); }
+    catch (e) { if (e !== OVER) throw e; isExact = false; memo.clear(); }
   }
 
-  let isExact = true, V = exact;
-  try { exact(startMy, startOpp); }
-  catch (e) {
-    if (e !== OVER) throw e;
-    isExact = false; V = tail; memo.clear();
+  // Estimate for rosters too big to solve: the matches left × the average of W over the
+  // players each side has left, where W[i][j] is how player i fares against player j
+  // (in pairs formats, averaged over every partner either could have).
+  let after;
+  if (isExact) {
+    after = (my, opp, u, v) => ev(u, v) + exact(my ^ u, opp ^ v);
+  } else {
+    const W = hm.map(() => new Float64Array(ht.length));
+    if (n === 1) {
+      hm.forEach((_, i) => ht.forEach((_, j) => { W[i][j] = ev(1 << i, 1 << j); }));
+    } else {
+      const pm = unitsOf(startMy, Math.min(2, mine.length)), pt = unitsOf(startOpp, Math.min(2, theirs.length));
+      const cnt = hm.map(() => new Float64Array(ht.length));
+      for (const u of pm) for (const v of pt) {
+        const x = ev(u, v);
+        for (const i of bitsOf(u)) for (const j of bitsOf(v)) { W[i][j] += x; cnt[i][j]++; }
+      }
+      W.forEach((row, i) => row.forEach((_, j) => { if (cnt[i][j]) row[j] /= cnt[i][j]; }));
+    }
+    // Row / column sums of W over a state, cached for the state the loops are working on.
+    let sMy = -1, sOpp = -1, row, col, total;
+    const sums = (my, opp) => {
+      if (my === sMy && opp === sOpp) return;
+      sMy = my; sOpp = opp; row = new Float64Array(hm.length); col = new Float64Array(ht.length); total = 0;
+      const bm = bitsOf(my), bo = bitsOf(opp);
+      for (const i of bm) for (const j of bo) { row[i] += W[i][j]; col[j] += W[i][j]; total += W[i][j]; }
+    };
+    after = (my, opp, u, v) => {
+      const my2 = my ^ u, opp2 = opp ^ v;
+      const cells = popcount(my2) * popcount(opp2);
+      if (!cells) return ev(u, v);
+      sums(my, opp);
+      const bu = bitsOf(u), bv = bitsOf(v);
+      let block = total;
+      for (const i of bu) block -= row[i];
+      for (const j of bv) block -= col[j];
+      for (const i of bu) for (const j of bv) block += W[i][j];
+      return ev(u, v) + matchesLeft(my2, opp2) * block / cells;
+    };
   }
-  // The value of playing u against v from this state.
-  const after = (my, opp, u, v) => ev(u, v) + V(my ^ u, opp ^ v);
 
   // Best reply to a locked unit: mine to theirs (maximise) or theirs to mine (minimise).
   const myReplies = (my, opp, v) => unitsOf(my, sizes(my, opp)[0])
