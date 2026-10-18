@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { planRound, pairingTable } from '../lib/optimize';
+import { planRound, pairingTable, gradeDraft } from '../lib/optimize';
 
 // Hidden page (not linked anywhere): solves each round's snake draft for one team and says
 // who to send next. Reads the same live state as the Matchups page.
@@ -97,6 +97,14 @@ function RoundPlan({ round, event, teams, myIdx, myTeam, oppTeam, players, match
   const plan = useMemo(() => (mine.length && theirs.length)
     ? planRound({ format: round.format, event, holes, mine, theirs, pickerIsMe, startK: made, pending })
     : null, [key]);
+  // Grade what's already been drafted, for both teams (team A = first by name, as everywhere).
+  const drafted = [...matches].sort((x, y) => (x.seq || 0) - (y.seq || 0));
+  const gradeKey = [key, players.map(p => p.id + ':' + p.team_id + ':' + p.handicap).join(),
+    drafted.map(m => m.side_a_players.join('+') + 'v' + m.side_b_players.join('+')).join()].join('|');
+  const grade = useMemo(() => drafted.length
+    ? gradeDraft({ format: round.format, event, holes, firstIdx, matches: drafted,
+        teamA: players.filter(p => p.team_id === teams[0].id), teamB: players.filter(p => p.team_id === teams[1].id) })
+    : null, [gradeKey]);
   const table = useMemo(() => (mine.length && theirs.length)
     ? pairingTable({ format: round.format, event, holes, mine, theirs }) : [], [key]);
 
@@ -105,6 +113,7 @@ function RoundPlan({ round, event, teams, myIdx, myTeam, oppTeam, players, match
       <h3>{round.name} <span className="dim">· {round.format.replace('_', ' ')}</span></h3>
       {!round.first_team_id && made === 0 &&
         <p className="muted small">Coin toss not done yet — assuming {teams[0].name} picks first.</p>}
+      {grade && grade.graded > 0 && <DraftGrade g={grade} teams={teams} names={names} />}
       {!plan && <p className="muted small">All players placed.</p>}
       {plan && (
         <>
@@ -187,6 +196,61 @@ function Decision({ d, names, oppName }) {
       <div className="caddie-tag">{oppName} picks first</div>
       <div>Likely <strong>{names(top.theirs)}</strong> → answer with <strong>{names(top.mine)}</strong></div>
       {rows(d.options, o => <>If {names(o.theirs)} → <strong>{names(o.mine)}</strong></>)}
+    </div>
+  );
+}
+
+const verdict = lost => lost < 0.005 ? { cls: 'ok', mark: '✓', text: 'best' }
+  : lost < 0.03 ? { cls: 'ok', mark: '≈', text: `close (−${pts(lost)})` }
+  : { cls: 'bad', mark: '✗', text: `gave away ${pts(lost)}` };
+
+function DraftGrade({ g, teams, names }) {
+  const teamOf = side => teams[side === 'A' ? 0 : 1];
+  const other = side => (side === 'A' ? 'B' : 'A');
+  const PickLine = ({ side, verb, ids, lost, best, rank, of, answer }) => {
+    const v = verdict(lost);
+    return (
+      <div className="caddie-dec">
+        <span className={'caddie-mark ' + v.cls}>{v.mark}</span>
+        <span>
+          <strong>{teamOf(side).name}</strong> {verb} <strong>{names(ids)}</strong>
+          <span className="muted small"> · {v.text}{lost >= 0.005 && <> — best was <strong>{names(best)}</strong>
+            {answer && <> (they'd answer {names(answer)})</>}, this was #{rank} of {of}</>}</span>
+        </span>
+      </div>
+    );
+  };
+  return (
+    <div className="caddie-grade">
+      <div className="caddie-tag">Draft grade{!g.complete && ' so far'}{!g.exact && ' · approximate'}</div>
+      <div className="caddie-badges">
+        {['A', 'B'].map(side => (
+          <div key={side} className="caddie-badge" style={{ borderColor: teamOf(side).color || undefined }}>
+            <span className="caddie-letter">{g[side].grade}</span>
+            <span><strong>{teamOf(side).name}</strong><br />
+              <span className="muted small">{g[side].lost < 0.005 ? 'no points given away' : `gave away ${pts(g[side].lost)} pts`}</span></span>
+          </div>
+        ))}
+      </div>
+      {g.complete && (
+        <p className="muted small">
+          Projected from the draft: {teams[0].name} {pts(g.actual)} – {pts(g.graded - g.actual)} {teams[1].name}.
+          {' '}With perfect drafting by both: {pts(g.optimal)} – {pts(g.graded - g.optimal)}.
+        </p>
+      )}
+      <ul className="clean caddie-picks">
+        {g.picks.map(p => p.skipped ? (
+          <li key={p.k} className="muted small">Match {p.k + 1}: {names(p.a)} vs {names(p.b)} — doesn't fit the draft order, not graded</li>
+        ) : (
+          <li key={p.k}>
+            <div className="muted small">Match {p.k + 1} · {teamOf('A').name} {pts(p.ev)} pts expected</div>
+            <PickLine side={p.picker} verb="sent" ids={p.pick} lost={p.pickLoss} best={p.bestPick}
+              answer={p.bestPickAnswer} rank={p.pickRank} of={p.pickOptions} />
+            <PickLine side={other(p.picker)} verb="answered with" ids={p.reply} lost={p.replyLoss} best={p.bestReply}
+              rank={p.replyRank} of={p.replyOptions} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

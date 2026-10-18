@@ -41,19 +41,12 @@ export function matchValue({ format, event, holes, aHcps, bHcps }) {
   return { ev: p.pA + p.pHalf / 2, ...p, aHcp, bHcp, strokes: strokeMap.strokes, receiver: strokeMap.receiver };
 }
 
-// mine / theirs: players still to be placed, [{ id, handicap }].
-// pickerIsMe(k): whether my team picks first in the round's k-th match (0-based, counting
-//   matches already made — pass matchesMade as `startK`).
-// pending: the picker's locked-in unit, { mine: bool, ids: [...] } or null.
-export function planRound({ format, event, holes = [], mine, theirs, pickerIsMe, startK = 0, pending = null }) {
+// The game over a fixed roster: pairing values, the (exact or heuristic) value of any state,
+// and every side's ranked options from a state. States are bitmasks over mine / theirs.
+function solver({ format, event, holes, mine, theirs, pickerIsMe, startK }) {
   const n = format === 'singles' ? 1 : 2;
-  mine = mine.slice(0, MAX_SIDE); theirs = theirs.slice(0, MAX_SIDE);
   const full = arr => (1 << arr.length) - 1;
-  const idsOf = (arr, mask) => bitsOf(mask).map(i => arr[i].id);
-  const maskOf = (arr, ids) => ids.reduce((m, id) => m | (1 << arr.findIndex(p => p.id === id)), 0);
   const startMy = full(mine), startOpp = full(theirs);
-  // A lock naming players who aren't available any more is stale — ignore it.
-  if (pending && !pending.ids.every(id => (pending.mine ? mine : theirs).some(p => p.id === id))) pending = null;
 
   const evCache = new Map();
   const ev = (u, v) => {
@@ -134,6 +127,23 @@ export function planRound({ format, event, holes = [], mine, theirs, pickerIsMe,
   const theirPicks = (my, opp) => unitsOf(opp, sizes(my, opp)[1])
     .map(v => myReplies(my, opp, v)[0]).sort((x, y) => x.value - y.value);
 
+  return { exact: isExact, startMy, startOpp, kOf, ev, after, myReplies, theirReplies, myPicks, theirPicks };
+}
+
+const idsOf = (arr, mask) => bitsOf(mask).map(i => arr[i].id);
+const maskOf = (arr, ids) => ids.reduce((m, id) => m | (1 << arr.findIndex(p => p.id === id)), 0);
+
+// mine / theirs: players still to be placed, [{ id, handicap }].
+// pickerIsMe(k): whether my team picks first in the round's k-th match (0-based, counting
+//   matches already made — pass matchesMade as `startK`).
+// pending: the picker's locked-in unit, { mine: bool, ids: [...] } or null.
+export function planRound({ format, event, holes = [], mine, theirs, pickerIsMe, startK = 0, pending = null }) {
+  mine = mine.slice(0, MAX_SIDE); theirs = theirs.slice(0, MAX_SIDE);
+  // A lock naming players who aren't available any more is stale — ignore it.
+  if (pending && !pending.ids.every(id => (pending.mine ? mine : theirs).some(p => p.id === id))) pending = null;
+  const { exact: isExact, startMy, startOpp, kOf, myReplies, theirReplies, myPicks, theirPicks } =
+    solver({ format, event, holes, mine, theirs, pickerIsMe, startK });
+
   // Principal line: optimal play by both teams from the current state to the last match.
   const line = [];
   let my = startMy, opp = startOpp, lock = pending;
@@ -188,4 +198,75 @@ export function pairingTable({ format, event, holes = [], mine, theirs }) {
     return { mine: u.map(p => p.id), vs,
       avg: evs.reduce((a, b) => a + b, 0) / (evs.length || 1), worst: Math.min(...evs), best: Math.max(...evs) };
   }).sort((a, b) => b.avg - a.avg);
+}
+
+// Letter grade for the expected points a team's draft decisions gave away.
+const GRADES = [[0.03, 'A+'], [0.1, 'A'], [0.2, 'A−'], [0.3, 'B+'], [0.45, 'B'], [0.6, 'B−'],
+  [0.8, 'C+'], [1, 'C'], [1.3, 'C−'], [1.7, 'D']];
+export const letterGrade = lost => (GRADES.find(([max]) => lost <= max) || [0, 'F'])[1];
+
+// Grade a round's draft as it actually happened. Replays the matches in draft order and, at
+// each one, compares the picking team's choice with its best pick and the replying team's
+// answer with its best answer — each valued assuming perfect play afterwards. A "loss" is the
+// expected points a decision gave away versus the best one available at that moment.
+// teamA / teamB: every player on each team, [{ id, handicap }]; matches: this round's, in
+// draft (seq) order; firstIdx: 0 if team A picked first in the first match, else 1.
+export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, firstIdx = 0 }) {
+  const n = format === 'singles' ? 1 : 2;
+  // Players still unplaced stay in the pool: they were options at every pick.
+  teamA = teamA.slice(0, MAX_SIDE); teamB = teamB.slice(0, MAX_SIDE);
+  const aFirst = k => (k + firstIdx) % 2 === 0;
+  const S = solver({ format, event, holes, mine: teamA, theirs: teamB, pickerIsMe: aFirst, startK: 0 });
+  const idsA = mask => idsOf(teamA, mask), idsB = mask => idsOf(teamB, mask);
+  const pos = x => Math.max(0, x);
+  const rankOf = (opts, value, better) => 1 + opts.filter(o => better(o.value, value) && Math.abs(o.value - value) > 1e-9).length;
+
+  const picks = [];
+  let my = S.startMy, opp = S.startOpp, lossA = 0, lossB = 0, actual = 0;
+  const optimal = my && opp ? (aFirst(0) ? S.myPicks : S.theirPicks)(my, opp)[0].value : 0;
+  matches.forEach((m, k) => {
+    const ids = [...m.side_a_players, ...m.side_b_players];
+    const a = ids.filter(id => teamA.some(p => p.id === id)), b = ids.filter(id => teamB.some(p => p.id === id));
+    const u = maskOf(teamA, a), v = maskOf(teamB, b);
+    const fits = (u & ~my) === 0 && (v & ~opp) === 0 &&
+      a.length === Math.min(n, popcount(my)) && b.length === Math.min(n, popcount(opp));
+    if (!fits || !u || !v) {   // a hand-built or odd-sized match: record it, don't grade it
+      picks.push({ k, skipped: true, a, b });
+      my &= ~u; opp &= ~v;
+      return;
+    }
+    const ev = S.ev(u, v);
+    const result = S.after(my, opp, u, v);   // team A's value after both choices
+    let row;
+    if (aFirst(k)) {
+      const opts = S.myPicks(my, opp), replies = S.theirReplies(my, opp, u);
+      const pickVal = replies[0].value;
+      row = { picker: 'A', pick: a, reply: b,
+        pickLoss: pos(opts[0].value - pickVal), bestPick: idsA(opts[0].u), bestPickAnswer: idsB(opts[0].v),
+        pickRank: rankOf(opts, pickVal, (x, y) => x > y), pickOptions: opts.length,
+        replyLoss: pos(result - replies[0].value), bestReply: idsB(replies[0].v),
+        replyRank: rankOf(replies, result, (x, y) => x < y), replyOptions: replies.length };
+      lossA += row.pickLoss; lossB += row.replyLoss;
+    } else {
+      const opts = S.theirPicks(my, opp), replies = S.myReplies(my, opp, v);
+      const pickVal = replies[0].value;
+      row = { picker: 'B', pick: b, reply: a,
+        pickLoss: pos(pickVal - opts[0].value), bestPick: idsB(opts[0].v), bestPickAnswer: idsA(opts[0].u),
+        pickRank: rankOf(opts, pickVal, (x, y) => x < y), pickOptions: opts.length,
+        replyLoss: pos(replies[0].value - result), bestReply: idsA(replies[0].u),
+        replyRank: rankOf(replies, result, (x, y) => x > y), replyOptions: replies.length };
+      lossB += row.pickLoss; lossA += row.replyLoss;
+    }
+    picks.push({ k, ev, ...row });
+    actual += ev;
+    my ^= u; opp ^= v;
+  });
+
+  const graded = picks.filter(p => !p.skipped).length;
+  return {
+    exact: S.exact, graded, complete: !(my && opp),
+    picks, optimal, actual,
+    A: { lost: lossA, grade: letterGrade(lossA) },
+    B: { lost: lossB, grade: letterGrade(lossB) }
+  };
 }

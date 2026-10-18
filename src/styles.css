@@ -244,3 +244,10 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .caddie-opts li{padding:4px 0;border-bottom:1px solid var(--hair);flex-wrap:wrap}
 .caddie-table td,.caddie-table th{font-variant-numeric:tabular-nums}
 .caddie details{margin-top:6px}
+.caddie-grade{margin:4px 0 14px;display:flex;flex-direction:column;gap:8px}
+.caddie-badges{display:flex;gap:10px;flex-wrap:wrap}
+.caddie-badge{flex:1;min-width:150px;display:flex;align-items:center;gap:10px;border:1.5px solid var(--green);padding:8px 12px;background:var(--field)}
+.caddie-letter{font-family:var(--serif);font-size:34px;font-weight:700;color:var(--green);min-width:44px;text-align:center;line-height:1}
+.caddie-picks li{padding:6px 0;border-bottom:1px solid var(--hair)}
+.caddie-dec{display:flex;gap:8px;align-items:baseline;margin-top:2px}
+.caddie-mark{font-weight:800;width:14px;flex:none;text-align:center}.caddie-mark.ok{color:var(--green)}.caddie-mark.bad{color:#9c2f22}

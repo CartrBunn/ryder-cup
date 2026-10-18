@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planRound, pairingTable, matchValue } from './optimize';
+import { planRound, pairingTable, matchValue, gradeDraft } from './optimize';
 
 const holes = Array.from({ length: 18 }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
 const event = { singles_pct: 100, altshot_pct: 50, scramble_low_pct: 35, scramble_high_pct: 15, scoring_mode: 'match' };
@@ -52,5 +52,40 @@ describe('planRound', () => {
   it('builds a cheat sheet sorted by average value', () => {
     const rows = pairingTable({ format: 'singles', event: zero, holes, mine: team('M', [0, 20]), theirs: team('T', [10]) });
     expect(rows[0].mine).toEqual(['M1']);
+  });
+});
+
+describe('gradeDraft', () => {
+  const zero = { ...event, singles_pct: 0 };
+  const A = team('A', [0, 10, 20, 30]), B = team('B', [5, 15, 25, 35]);
+  const m = (a, b) => ({ side_a_players: a, side_b_players: b });
+
+  it('gives a perfect grade to the optimal line', () => {
+    const plan = planRound({ format: 'singles', event: zero, holes, mine: A, theirs: B, pickerIsMe: k => k % 2 === 0 });
+    const g = gradeDraft({ format: 'singles', event: zero, holes, teamA: A, teamB: B,
+      matches: plan.line.map(x => m(x.mine, x.theirs)), firstIdx: 0 });
+    expect(g.graded).toBe(4);
+    expect(g.A.lost).toBeLessThan(1e-9);
+    expect(g.B.lost).toBeLessThan(1e-9);
+    expect(g.A.grade).toBe('A+');
+    expect(g.actual).toBeCloseTo(g.optimal, 9);
+  });
+
+  it('charges a bad answer to the team that made it', () => {
+    // A sends its scratch player first; B answers with its worst instead of conceding cheaply.
+    const g = gradeDraft({ format: 'singles', event: zero, holes, teamA: A, teamB: B,
+      matches: [m(['A1'], ['B4'])], firstIdx: 0 });
+    const first = g.picks[0];
+    expect(first.picker).toBe('A');
+    expect(first.replyLoss).toBeGreaterThanOrEqual(0);
+    expect(g.B.lost).toBeCloseTo(first.replyLoss, 9);
+    expect(g.A.lost).toBeCloseTo(first.pickLoss, 9);
+  });
+
+  it('skips matches that do not fit the draft', () => {
+    const g = gradeDraft({ format: 'singles', event: zero, holes, teamA: A, teamB: B,
+      matches: [m(['A1', 'A2'], ['B1'])], firstIdx: 0 });
+    expect(g.picks[0].skipped).toBe(true);
+    expect(g.graded).toBe(0);
   });
 });
