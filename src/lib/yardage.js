@@ -73,3 +73,13 @@ export function bestFix(geolocation, { goodM = 5, waitMs = 20000, onProgress } =
       { enableHighAccuracy: true, timeout: waitMs, maximumAge: 0 });
   });
 }
+
+// How trustworthy a reading is, from its accuracy radius in meters, for the GPS bar on the
+// score card: 4 bars is good to a few yards, 1 bar means the number could be well off.
+export function gpsQuality(accM) {
+  if (accM == null) return { bars: 0, label: 'Finding GPS…' };
+  if (accM <= 5) return { bars: 4, label: 'GPS excellent' };
+  if (accM <= 10) return { bars: 3, label: 'GPS good' };
+  if (accM <= 20) return { bars: 2, label: 'GPS fair' };
+  return { bars: 1, label: 'GPS weak' };
+}

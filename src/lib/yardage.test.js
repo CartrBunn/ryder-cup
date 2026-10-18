@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bestFix, parseLatLng, yardsBetween } from './yardage';
+import { bestFix, gpsQuality, parseLatLng, yardsBetween } from './yardage';
 
 describe('parseLatLng', () => {
   it('reads plain coordinates', () => {
@@ -92,5 +92,12 @@ describe('bestFix', () => {
     await vi.advanceTimersByTimeAsync(1000);
     await check;
     vi.useRealTimers();
+  });
+});
+
+describe('gpsQuality', () => {
+  it('maps accuracy to bars', () => {
+    expect([null, 3, 5, 8, 10, 15, 20, 21, 500].map(m => gpsQuality(m).bars))
+      .toEqual([0, 4, 4, 3, 3, 2, 2, 1, 1]);
   });
 });

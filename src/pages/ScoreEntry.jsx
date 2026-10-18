@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { computeMatch } from '../lib/matchcompute';
 import { orderedHoles } from '../lib/scoring';
-import { metersToYards, yardsBetween } from '../lib/yardage';
+import { gpsQuality, metersToYards, yardsBetween } from '../lib/yardage';
 
 const SAVE_DELAY = 400;     // ms of typing quiet before a hole is written
 const ACE_SAVE_DELAY = 2500;   // ms before a lone "1" is written (might be 10-19)
@@ -106,7 +106,8 @@ function Yardage({ holes, gross }) {
   const step = d => setPicked(holes[(idx + d + holes.length) % holes.length].number);
   const yards = green && fix ? Math.round(yardsBetween(fix, green)) : null;
   const fromTee = tee && fix ? Math.round(yardsBetween(tee, fix)) : null;
-  const plusMinus = fix && fix.acc > 10 ? Math.round(metersToYards(fix.acc)) : 0;   // only flag a weak fix
+  const gps = gpsQuality(fix?.acc);
+  const denied = gpsErr.startsWith('Location is off');
 
   return (
     <div className="yardage card">
@@ -114,10 +115,15 @@ function Yardage({ holes, gross }) {
       <div>
         <div className="yhole">Hole {hole.number} · Par {hole.par}</div>
         {!green ? <div className="muted small">No green set for this hole</div>
-          : yards == null ? <div className="muted small">{gpsErr || 'Finding you…'}</div>
-          : <div><span className="yds">{yards}</span> <span className="yunit">yds to green</span>
-              {plusMinus > 0 && <span className="muted small"> ±{plusMinus}</span>}</div>}
+          : yards == null ? (denied ? <div className="muted small">{gpsErr}</div> : <div className="yds dim">—</div>)
+          : <div><span className="yds">{yards}</span> <span className="yunit">yds to green</span></div>}
         {fromTee != null && <div className="yfrom">{fromTee} yds from tee</div>}
+        {on && !denied && (
+          <div className={`gps q${gps.bars}`}>
+            <span className="bars" aria-hidden="true"><i /><i /><i /><i /></span>
+            {gps.label}{fix && ` · ±${Math.round(metersToYards(fix.acc))} yds`}
+          </div>
+        )}
         <button className="linkish" onClick={() => toggle(true)}>Hide</button>
       </div>
       <button className="mini" onClick={() => step(1)} aria-label="Next hole">›</button>
