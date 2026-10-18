@@ -92,7 +92,7 @@ describe('gradeDraft', () => {
     expect(first.picker).toBe('A');
     expect(first.replyLoss).toBeGreaterThanOrEqual(0);
     expect(g.B.lost).toBeCloseTo(first.replyLoss, 9);
-    expect(g.A.lost).toBeCloseTo(first.pickLoss, 9);
+    expect(g.A.decisions).toBe(0);   // A only picked, and picks aren't graded
   });
 
   it('skips matches that do not fit the draft', () => {

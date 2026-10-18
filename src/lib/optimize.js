@@ -223,7 +223,7 @@ export function pairingTable({ format, event, holes = [], mine, theirs }) {
   }).sort((a, b) => b.avg - a.avg);
 }
 
-// Letter grade from the average expected points a team's real (unforced) decisions gave
+// Letter grade from the average expected points a team's real (unforced) answers gave
 // away beyond the tolerance. Most captains land in the B range; a clean draft is an A.
 const GRADES = [[0.02, 'A+'], [0.05, 'A'], [0.08, 'A−'], [0.12, 'B+'], [0.16, 'B'], [0.2, 'B−'],
   [0.25, 'C+'], [0.3, 'C'], [0.36, 'C−'], [0.45, 'D']];
@@ -234,9 +234,9 @@ export const letterGrade = perDecision => (GRADES.find(([max]) => perDecision <=
 const TOLERANCE = { exact: 0.03, approx: 0.2 };
 
 // Grade a round's draft as it actually happened. Replays the matches in draft order and, at
-// each one, compares the picking team's choice with its best pick and the replying team's
-// answer with its best answer — each valued assuming perfect play afterwards. A "loss" is the
-// expected points a decision gave away versus the best one available at that moment.
+// each one, compares the replying team's answer with its best answer to the unit it faced,
+// valued assuming perfect play afterwards. A "loss" is the expected points an answer gave
+// away versus the best one available at that moment. Picks are recorded but not graded.
 // teamA / teamB: every player on each team, [{ id, handicap }]; matches: this round's, in
 // draft (seq) order; firstIdx: 0 if team A picked first in the first match, else 1.
 export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, firstIdx = 0 }) {
@@ -247,7 +247,6 @@ export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, f
   const S = solver({ format, event, holes, mine: teamA, theirs: teamB, pickerIsMe: aFirst, startK: 0 });
   const idsA = mask => idsOf(teamA, mask), idsB = mask => idsOf(teamB, mask);
   const pos = x => Math.max(0, x);
-  const rankOf = (opts, value, better) => 1 + opts.filter(o => better(o.value, value) && Math.abs(o.value - value) > 1e-9).length;
 
   const picks = [];
   const tol = S.exact ? TOLERANCE.exact : TOLERANCE.approx;
@@ -273,25 +272,19 @@ export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, f
     }
     const ev = S.ev(u, v);
     const result = S.after(my, opp, u, v);   // team A's value after both choices
+    // Only the answer is graded: the team picking first is guessing, the answering team
+    // can see exactly who it's facing.
     let row;
     if (aFirst(k)) {
-      const opts = S.myPicks(my, opp), replies = S.theirReplies(my, opp, u);
-      const pickVal = replies[0].value;
-      row = { picker: 'A', pick: a, reply: b,
-        pickLoss: pos(opts[0].value - pickVal), bestPick: idsA(opts[0].u), bestPickAnswer: idsB(opts[0].v),
-        pickRank: rankOf(opts, pickVal, (x, y) => x > y), pickOptions: opts.length,
-        replyLoss: pos(result - replies[0].value), bestReply: idsB(replies[0].v),
-        replyRank: rankOf(replies, result, (x, y) => x < y), replyOptions: replies.length };
-      charge('A', row.pickLoss, row.pickOptions); charge('B', row.replyLoss, row.replyOptions);
+      const replies = S.theirReplies(my, opp, u);
+      row = { picker: 'A', pick: a, reply: b, replyLoss: pos(result - replies[0].value),
+        bestReply: idsB(replies[0].v), replyOptions: replies.length };
+      charge('B', row.replyLoss, row.replyOptions);
     } else {
-      const opts = S.theirPicks(my, opp), replies = S.myReplies(my, opp, v);
-      const pickVal = replies[0].value;
-      row = { picker: 'B', pick: b, reply: a,
-        pickLoss: pos(pickVal - opts[0].value), bestPick: idsB(opts[0].v), bestPickAnswer: idsA(opts[0].u),
-        pickRank: rankOf(opts, pickVal, (x, y) => x < y), pickOptions: opts.length,
-        replyLoss: pos(replies[0].value - result), bestReply: idsA(replies[0].u),
-        replyRank: rankOf(replies, result, (x, y) => x > y), replyOptions: replies.length };
-      charge('B', row.pickLoss, row.pickOptions); charge('A', row.replyLoss, row.replyOptions);
+      const replies = S.myReplies(my, opp, v);
+      row = { picker: 'B', pick: b, reply: a, replyLoss: pos(replies[0].value - result),
+        bestReply: idsA(replies[0].u), replyOptions: replies.length };
+      charge('A', row.replyLoss, row.replyOptions);
     }
     picks.push({ k, ev, ...row });
     actual += ev;

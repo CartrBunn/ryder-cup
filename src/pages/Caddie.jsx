@@ -209,33 +209,31 @@ const verdict = (lost, tol, options) => options < 2 ? { cls: 'dim', mark: '·', 
 function DraftGrade({ g, teams, names }) {
   const teamOf = side => teams[side === 'A' ? 0 : 1];
   const other = side => (side === 'A' ? 'B' : 'A');
-  const decisions = side => g.picks.filter(p => !p.skipped).flatMap(p => [
-    { side: p.picker, lost: p.pickLoss, of: p.pickOptions },
-    { side: other(p.picker), lost: p.replyLoss, of: p.replyOptions }
-  ]).filter(d => d.side === side && d.of > 1);
+  const decisions = side => g.picks.filter(p => !p.skipped)
+    .map(p => ({ side: other(p.picker), lost: p.replyLoss, of: p.replyOptions }))
+    .filter(d => d.side === side && d.of > 1);
   const onTarget = side => decisions(side).filter(d => d.lost <= g.tolerance).length;
-  const PickLine = ({ side, verb, ids, lost, best, of, answer }) => {
+  const PickLine = ({ side, verb, ids, lost, best, of }) => {
     const v = verdict(lost, g.tolerance, of);
     return (
       <div className="caddie-dec">
         <span className={'caddie-mark ' + v.cls}>{v.mark}</span>
         <span>
           <strong>{teamOf(side).name}</strong> {verb} <strong>{names(ids)}</strong>
-          <span className="muted small"> · {v.text}{v.miss && <> — better was <strong>{names(best)}</strong>
-            {answer && <> (they'd answer {names(answer)})</>}</>}</span>
+          <span className="muted small"> · {v.text}{v.miss && <> — better was <strong>{names(best)}</strong></>}</span>
         </span>
       </div>
     );
   };
   return (
     <div className="caddie-grade">
-      <div className="caddie-tag">Draft grade{!g.complete && ' so far'}{!g.exact && ' · approximate'}</div>
+      <div className="caddie-tag">Answer grade{!g.complete && ' so far'}{!g.exact && ' · approximate'}</div>
       <div className="caddie-badges">
         {['A', 'B'].map(side => (
           <div key={side} className="caddie-badge" style={{ borderColor: teamOf(side).color || undefined }}>
             <span className="caddie-letter">{g[side].grade}</span>
             <span><strong>{teamOf(side).name}</strong><br />
-              <span className="muted small">{onTarget(side)} of {decisions(side).length} decisions on target</span></span>
+              <span className="muted small">{onTarget(side)} of {decisions(side).length} answers on target</span></span>
           </div>
         ))}
       </div>
@@ -251,8 +249,10 @@ function DraftGrade({ g, teams, names }) {
         ) : (
           <li key={p.k}>
             <div className="muted small">Match {p.k + 1} · {teamOf('A').name} {pts(p.ev)} pts expected</div>
-            <PickLine side={p.picker} verb="sent" ids={p.pick} lost={p.pickLoss} best={p.bestPick}
-              answer={p.bestPickAnswer} of={p.pickOptions} />
+            <div className="caddie-dec">
+              <span className="caddie-mark dim">→</span>
+              <span><strong>{teamOf(p.picker).name}</strong> sent <strong>{names(p.pick)}</strong></span>
+            </div>
             <PickLine side={other(p.picker)} verb="answered with" ids={p.reply} lost={p.replyLoss} best={p.bestReply}
               of={p.replyOptions} />
           </li>
