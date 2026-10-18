@@ -21,7 +21,7 @@ const typingMention = (text, caret) => {
 };
 
 export default function Chat() {
-  const { realProfile } = useAuth();
+  const { realProfile, spectator } = useAuth();
   const { messages, people, reactions, react, markRead, send, remove, muted, setMuted } = useChat();
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
@@ -36,7 +36,7 @@ export default function Chat() {
   const hold = useRef(null);   // pending press-and-hold: { timer, x, y }
 
   const me = realProfile.id;
-  const isOrganizer = realProfile.role === 'organizer';
+  const isOrganizer = realProfile.role === 'organizer' && !spectator;
   const byId = useMemo(() => Object.fromEntries(people.map(p => [p.id, p])), [people]);
 
   // Reactions grouped per message, in REACTIONS order: { [message id]: [{ emoji, users }] }

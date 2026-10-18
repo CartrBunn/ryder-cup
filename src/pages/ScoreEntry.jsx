@@ -278,9 +278,9 @@ export default function ScoreEntry() {
   const nameB = bundle.teams.find(t => t.id === computed.teamBId)?.name || 'B';
   const stroke = bundle.event.scoring_mode === 'stroke';
   const total = side => Object.values(gross[side]).reduce((t, v) => t + Number(v), 0);
-  const canEdit = ['organizer', 'captain'].includes(profile.role)
+  const canEdit = profile.role !== 'spectator' && (['organizer', 'captain'].includes(profile.role)
     || match.side_a_players.includes(profile.id)
-    || match.side_b_players.includes(profile.id);
+    || match.side_b_players.includes(profile.id));
 
   return (
     <div className="stack">

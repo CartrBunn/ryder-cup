@@ -20,7 +20,7 @@ import Alerts from './components/Alerts';
 import { disablePush } from './lib/push';
 
 function Nav() {
-  const { session, profile, realProfile, viewAs, setViewAs } = useAuth();
+  const { session, profile, realProfile, viewAs, setViewAs, spectator } = useAuth();
   const { unread } = useChat();
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
@@ -39,9 +39,33 @@ function Nav() {
     nav('/login');
   }
   const close = () => setOpen(false);
-  const viewValue = !viewAs ? '' : viewAs.role === 'player' ? 'player' : 'captain:' + viewAs.teamId;
+  // Tournament day is locked: leaving it needs the organizer's password again.
+  async function exitTournamentDay() {
+    const pw = window.prompt('Organizer password to exit tournament day view:');
+    if (!pw) return;
+    const { error } = await supabase.auth.signInWithPassword({ email: session.user.email, password: pw });
+    if (error) { window.alert('Wrong password.'); return; }
+    setViewAs(null);
+  }
+  if (spectator) return (
+    <nav className="nav">
+      <Link to="/" className="brand" onClick={close}>Ryder Cup</Link>
+      <button className="hamburger" onClick={() => setOpen(o => !o)} aria-label="Menu">
+        {open ? '✕' : '☰'}
+        {!open && unread > 0 && <span className="navdot" />}
+      </button>
+      <div className={open ? 'navlinks open' : 'navlinks'}>
+        <Link to="/" onClick={close}>Leaderboard</Link>
+        <Link to="/prizes" onClick={close}>Individual Leaderboard</Link>
+        <Link to="/chat" className="chatlink" onClick={close}>Chat{unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}</Link>
+        <Link to="/draft" onClick={close}>Draft</Link>
+      </div>
+      <button className="logout" onClick={exitTournamentDay}>Exit</button>
+    </nav>
+  );
+  const viewValue = !viewAs ? '' : viewAs.role === 'player' || viewAs.role === 'spectator' ? viewAs.role : 'captain:' + viewAs.teamId;
   function changeView(v) {
-    setViewAs(!v ? null : v === 'player' ? { role: 'player' } : { role: 'captain', teamId: v.slice(8) });
+    setViewAs(!v ? null : v === 'player' || v === 'spectator' ? { role: v } : { role: 'captain', teamId: v.slice(8) });
     close();
   }
   const previewTeam = teams.find(t => t.id === viewAs?.teamId)?.name;
@@ -66,6 +90,7 @@ function Nav() {
         <select className="viewas" value={viewValue} onChange={e => changeView(e.target.value)} aria-label="View as">
           <option value="">Organizer view</option>
           <option value="player">Player view</option>
+          <option value="spectator">Tournament day view</option>
           {teams.map(t => <option key={t.id} value={'captain:' + t.id}>Captain view: {t.name}</option>)}
         </select>
       )}
@@ -83,11 +108,15 @@ function Nav() {
   );
 }
 
+const SPECTATOR_PATHS = ['/', '/prizes', '/chat', '/draft'];
+
 function Protected({ children, need }) {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, spectator } = useAuth();
+  const { pathname } = useLocation();
   if (loading) return <div className="center">Loading…</div>;
   if (!session) return <Navigate to="/login" replace />;
   if (!profile) return <Navigate to="/signup" replace />;
+  if (spectator && !SPECTATOR_PATHS.includes(pathname) && !pathname.startsWith('/match/')) return <Navigate to="/" replace />;
   if (need && !need.includes(profile.role)) return <Navigate to="/" replace />;
   return children;
 }

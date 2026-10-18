@@ -5,7 +5,7 @@ import CoinToss from '../components/CoinToss';
 
 // Alternating snake draft: A, B, B, A, A, B, ...  Captains/organizer assign from the pool.
 export default function Draft() {
-  const { profile, myTeamIdFor } = useAuth();
+  const { profile, myTeamIdFor, spectator } = useAuth();
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
   const [matches, setMatches] = useState([]);
@@ -167,7 +167,7 @@ export default function Draft() {
                   {players.filter(p => p.team_id === t.id).map(p => (
                     <li key={p.id} className="row between">
                       <span className="pname">{p.display_name} (<span className="dim">
-                        {p.id === profile.id
+                        {p.id === profile.id && !spectator
                           ? <input type="number" step="0.1" className="hcap-edit"
                               value={myHandicap}
                               onChange={e => setMyHandicap(e.target.value)}
@@ -194,7 +194,7 @@ export default function Draft() {
             {pool.map(p => (
               <div className="poolrow" key={p.id}>
                 <span>{p.display_name} (<span className="dim">
-                  {p.id === profile.id
+                  {p.id === profile.id && !spectator
                     ? <input type="number" step="0.1" className="hcap-edit"
                         value={myHandicap}
                         onChange={e => setMyHandicap(e.target.value)}

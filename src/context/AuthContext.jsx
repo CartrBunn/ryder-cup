@@ -10,7 +10,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isRecovery, setIsRecovery] = useState(false);
   // Organizers can preview the app as a player or as a team's captain sees it.
-  // null | { role: 'player' } | { role: 'captain', teamId }. UI-only: database permissions are unchanged.
+  // null | { role: 'player' } | { role: 'captain', teamId } | { role: 'spectator' } (tournament day: read-only). UI-only: database permissions are unchanged.
   const [viewAs, setViewAsState] = useState(() => {
     try { return JSON.parse(localStorage.getItem('viewAs')) || null; } catch { return null; }
   });
@@ -57,7 +57,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthCtx.Provider value={{
       session, profile: effectiveProfile, realProfile: profile, loading, refreshProfile,
-      isRecovery, setIsRecovery, viewAs: preview, setViewAs, myTeamIdFor,
+      isRecovery, setIsRecovery, viewAs: preview, spectator: preview?.role === 'spectator', setViewAs, myTeamIdFor,
     }}>
       {children}
     </AuthCtx.Provider>
