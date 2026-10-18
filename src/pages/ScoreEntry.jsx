@@ -106,7 +106,6 @@ function Yardage({ holes, gross }) {
   const step = d => setPicked(holes[(idx + d + holes.length) % holes.length].number);
   const yards = green && fix ? Math.round(yardsBetween(fix, green)) : null;
   const fromTee = tee && fix ? Math.round(yardsBetween(tee, fix)) : null;
-  const length = tee && green ? Math.round(yardsBetween(tee, green)) : null;   // from the pins, no GPS needed
   const gps = gpsQuality(fix?.acc);
   const denied = gpsErr.startsWith('Location is off');
 
@@ -117,9 +116,8 @@ function Yardage({ holes, gross }) {
         <div className="yhole">Hole {hole.number} · Par {hole.par}</div>
         {!green ? <div className="muted small">No green set for this hole</div>
           : yards == null ? (denied ? <div className="muted small">{gpsErr}</div> : <div className="yds dim">—</div>)
-          : <div><span className="yds">{yards}</span> <span className="yunit">yds to green</span></div>}
-        {fromTee != null && <div className="yfrom">{fromTee} yds from tee</div>}
-        {length != null && <div className="ylength">Middle of tee to middle of green: {length} yds</div>}
+          : <div><span className="yds">{yards}</span> <span className="yunit">yds to middle of green</span></div>}
+        {fromTee != null && <div className="yfrom">{fromTee} yds from middle of tee</div>}
         {on && !denied && (
           <div className={`gps q${gps.bars}`}>
             <span className="bars" aria-hidden="true"><i /><i /><i /><i /></span>

@@ -217,7 +217,6 @@ ul.clean{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;g
 .yardage .yds{font-family:var(--serif);font-size:44px;font-weight:700;color:var(--green);font-variant-numeric:tabular-nums;line-height:1.05}
 .yardage .yunit{font-size:12px;font-weight:700;color:var(--green)}
 .yardage .yfrom{font-size:13px;font-weight:600;color:var(--muted);margin-top:2px}
-.yardage .ylength{font-size:11px;color:var(--muted);margin-top:4px;padding-top:4px;border-top:1px solid var(--hair)}
 .yardage button.mini{font-size:20px;padding:4px 12px}
 .greenpin{display:flex;gap:6px;align-items:center;min-width:220px}
 .greenpin input{margin-top:0;font-size:13px;padding:6px 8px}
