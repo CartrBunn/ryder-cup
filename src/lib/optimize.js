@@ -223,10 +223,15 @@ export function pairingTable({ format, event, holes = [], mine, theirs }) {
   }).sort((a, b) => b.avg - a.avg);
 }
 
-// Letter grade for the expected points a team's draft decisions gave away.
-const GRADES = [[0.03, 'A+'], [0.1, 'A'], [0.2, 'A−'], [0.3, 'B+'], [0.45, 'B'], [0.6, 'B−'],
-  [0.8, 'C+'], [1, 'C'], [1.3, 'C−'], [1.7, 'D']];
-export const letterGrade = lost => (GRADES.find(([max]) => lost <= max) || [0, 'F'])[1];
+// Letter grade from the average expected points a team's real (unforced) decisions gave
+// away beyond the tolerance. Most captains land in the B range; a clean draft is an A.
+const GRADES = [[0.02, 'A+'], [0.05, 'A'], [0.08, 'A−'], [0.12, 'B+'], [0.16, 'B'], [0.2, 'B−'],
+  [0.25, 'C+'], [0.3, 'C'], [0.36, 'C−'], [0.45, 'D']];
+export const letterGrade = perDecision => (GRADES.find(([max]) => perDecision <= max) || [0, 'F'])[1];
+
+// How close to the best counts as just as good. The estimate used for big rosters is rough,
+// so it gets a wider margin than the exact solve.
+const TOLERANCE = { exact: 0.03, approx: 0.2 };
 
 // Grade a round's draft as it actually happened. Replays the matches in draft order and, at
 // each one, compares the picking team's choice with its best pick and the replying team's
@@ -245,7 +250,15 @@ export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, f
   const rankOf = (opts, value, better) => 1 + opts.filter(o => better(o.value, value) && Math.abs(o.value - value) > 1e-9).length;
 
   const picks = [];
-  let my = S.startMy, opp = S.startOpp, lossA = 0, lossB = 0, actual = 0;
+  const tol = S.exact ? TOLERANCE.exact : TOLERANCE.approx;
+  const tally = { A: { lost: 0, penalty: 0, decisions: 0 }, B: { lost: 0, penalty: 0, decisions: 0 } };
+  // A decision with only one option was forced: shown, but not held against anyone.
+  const charge = (side, loss, options) => {
+    if (options < 2) return;
+    const t = tally[side];
+    t.lost += loss; t.penalty += Math.max(0, loss - tol); t.decisions += 1;
+  };
+  let my = S.startMy, opp = S.startOpp, actual = 0;
   const optimal = my && opp ? (aFirst(0) ? S.myPicks : S.theirPicks)(my, opp)[0].value : 0;
   matches.forEach((m, k) => {
     const ids = [...m.side_a_players, ...m.side_b_players];
@@ -269,7 +282,7 @@ export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, f
         pickRank: rankOf(opts, pickVal, (x, y) => x > y), pickOptions: opts.length,
         replyLoss: pos(result - replies[0].value), bestReply: idsB(replies[0].v),
         replyRank: rankOf(replies, result, (x, y) => x < y), replyOptions: replies.length };
-      lossA += row.pickLoss; lossB += row.replyLoss;
+      charge('A', row.pickLoss, row.pickOptions); charge('B', row.replyLoss, row.replyOptions);
     } else {
       const opts = S.theirPicks(my, opp), replies = S.myReplies(my, opp, v);
       const pickVal = replies[0].value;
@@ -278,7 +291,7 @@ export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, f
         pickRank: rankOf(opts, pickVal, (x, y) => x < y), pickOptions: opts.length,
         replyLoss: pos(replies[0].value - result), bestReply: idsA(replies[0].u),
         replyRank: rankOf(replies, result, (x, y) => x > y), replyOptions: replies.length };
-      lossB += row.pickLoss; lossA += row.replyLoss;
+      charge('B', row.pickLoss, row.pickOptions); charge('A', row.replyLoss, row.replyOptions);
     }
     picks.push({ k, ev, ...row });
     actual += ev;
@@ -286,10 +299,13 @@ export function gradeDraft({ format, event, holes = [], teamA, teamB, matches, f
   });
 
   const graded = picks.filter(p => !p.skipped).length;
+  const summary = t => {
+    const perDecision = t.decisions ? t.penalty / t.decisions : 0;
+    return { ...t, perDecision, grade: letterGrade(perDecision) };
+  };
   return {
-    exact: S.exact, graded, complete: !(my && opp),
+    exact: S.exact, graded, complete: !(my && opp), tolerance: tol,
     picks, optimal, actual,
-    A: { lost: lossA, grade: letterGrade(lossA) },
-    B: { lost: lossB, grade: letterGrade(lossB) }
+    A: summary(tally.A), B: summary(tally.B)
   };
 }
