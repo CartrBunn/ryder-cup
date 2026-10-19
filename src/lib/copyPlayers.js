@@ -4,15 +4,16 @@ import { playerCreds, slug } from './playerAuth';
 // Bring one event's players (name + handicap) into another, e.g. last year's into this year's.
 // A player login is tied to its event's join code, so each one gets a new account under the new
 // code with a throwaway password, marked unclaimed: they pick a PIN when they Join with the new
-// code (claim_player in supabase/schema.sql), or the organizer resets one. Organizer accounts
-// and names already in the target event are skipped, so this is safe to run again to finish
+// code (claim_player in supabase/schema.sql), or the organizer resets one. A player who was an
+// organizer is made one again. Organizer logins already running the target event (copy_event
+// brings them over) and names already in it are skipped, so this is safe to run again to finish
 // a copy that stopped partway.
 // Returns { added, skipped, failed: [{ name, error }] }.
 export async function copyPlayers({ fromEventId, toEvent, onProgress }) {
   const must = async q => { const { data, error } = await q; if (error) throw error; return data; };
   const [src, orgs, have] = await Promise.all([
-    must(supabase.from('profiles').select('id, display_name, handicap').eq('event_id', fromEventId).order('display_name')),
-    must(supabase.from('event_organizers').select('user_id').eq('event_id', fromEventId)),
+    must(supabase.from('profiles').select('id, display_name, handicap, role').eq('event_id', fromEventId).order('display_name')),
+    must(supabase.from('event_organizers').select('user_id').eq('event_id', toEvent.id)),
     must(supabase.from('profiles').select('display_name').eq('event_id', toEvent.id))
   ]);
   const organizerIds = new Set(orgs.map(o => o.user_id));
@@ -36,6 +37,11 @@ export async function copyPlayers({ fromEventId, toEvent, onProgress }) {
       if (joinErr) throw joinErr;
       const { error: markErr } = await supabase.from('profiles').update({ claimed: false }).eq('id', data.user.id);
       if (markErr) throw markErr;
+      if (p.role === 'organizer') {
+        const { error: orgErr } = await supabase.rpc('set_organizer_role',
+          { p_player_id: data.user.id, p_make_organizer: true });
+        if (orgErr) throw orgErr;
+      }
       added++;
     } catch (e) {
       failed.push({ name: p.display_name, error: e.message || String(e) });

@@ -403,7 +403,9 @@ export default function AdminSetup() {
                       onChange={e => setHandicaps(h => ({ ...h, [p.id]: e.target.value }))}
                       onBlur={() => saveHandicap(p.id)}
                     />) <span className="tag">{p.role}</span>
-                    {p.claimed === false && <span className="tag" title="Copied from an earlier event. They join with this event's code, their name, and a new PIN.">hasn't joined</span>}
+                    {p.claimed === false && <span className="tag" title={p.role === 'organizer'
+                      ? "Copied from an earlier event. Organizers can't pick their own PIN — Reset PIN and share it with them."
+                      : "Copied from an earlier event. They join with this event's code, their name, and a new PIN."}>hasn't joined</span>}
                   </span>
                   {swapId === p.id ? (
                     <span className="row">
@@ -459,7 +461,7 @@ export default function AdminSetup() {
             <button disabled={!!copying} onClick={copyPlayersIn}>{copying || 'Copy players'}</button>
           </div>
         )}
-        {otherEvents.length > 0 && <p className="muted small">Copies names and handicaps (anyone already here is skipped). Copied players show "hasn't joined" until they join with this event's code, their name, and a new PIN — or you Reset PIN for them.</p>}
+        {otherEvents.length > 0 && <p className="muted small">Copies names and handicaps (anyone already here is skipped). Copied players show "hasn't joined" until they join with this event's code, their name, and a new PIN — or you Reset PIN for them. Copied organizers need you to Reset PIN.</p>}
       </section>
 
       <section className="card">

@@ -85,8 +85,8 @@ export default function Events() {
   const formCard = (copyFrom || creating) && (
     <section className="card">
       <h3>{copyFrom ? `Copy “${copyFrom.name}”` : 'New event'}</h3>
-      {copyFrom && <p className="muted small">Brings over the course, handicap allowances, scoring and
-        players. Teams, captains, rounds and matchups start fresh. Players join with the new code,
+      {copyFrom && <p className="muted small">Brings over the course, handicap allowances, scoring,
+        players and organizers. Teams, captains, rounds and matchups start fresh. Players join with the new code,
         their name, and a new PIN they pick.</p>}
       <label>Event name<input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
       <label>Join code<input value={form.code} placeholder="e.g. BIRDIE27"

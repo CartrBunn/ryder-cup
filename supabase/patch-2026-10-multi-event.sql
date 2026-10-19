@@ -31,15 +31,15 @@ create policy read_own_organizer on organizers for select to authenticated using
 drop policy if exists read_event_organizers on event_organizers;
 create policy read_event_organizers on event_organizers for select to authenticated using (true);
 
--- Existing organizer accounts (email logins, not player logins) run the event they're in and
--- any event they created.
+-- Everyone already marked organizer (an email login, or a player made organizer) runs the
+-- event they're in, and organizer logins run any event they created.
 insert into organizers (user_id, active_event_id)
-select p.id, p.event_id from profiles p join auth.users u on u.id = p.id
-where p.role = 'organizer' and u.email not like '%@players.rydercup.app'
+select p.id, p.event_id from profiles p
+where p.role = 'organizer' and p.event_id is not null
 on conflict (user_id) do nothing;
 insert into event_organizers (event_id, user_id)
-select p.event_id, p.id from profiles p join organizers o on o.user_id = p.id
-where p.event_id is not null
+select p.event_id, p.id from profiles p
+where p.role = 'organizer' and p.event_id is not null
 on conflict do nothing;
 insert into event_organizers (event_id, user_id)
 select e.id, e.created_by from events e join organizers o on o.user_id = e.created_by
@@ -145,6 +145,15 @@ begin
   insert into courses (event_id, name, holes)
   select v_event, name, holes from courses where event_id = p_source;
   perform become_organizer(v_event, (select display_name from profiles where id = auth.uid()));
+  -- The other organizer logins come along. (Players made organizer are copied as players by
+  -- the client and made organizer again there — their old login belongs to the old event.)
+  insert into event_organizers (event_id, user_id)
+  select v_event, o.user_id from event_organizers o join auth.users u on u.id = o.user_id
+  where o.event_id = p_source and u.email not like '%@players.rydercup.app'
+  on conflict do nothing;
+  insert into organizers (user_id, active_event_id)
+  select user_id, v_event from event_organizers where event_id = v_event
+  on conflict (user_id) do nothing;
   return v_event;
 end;
 $$;
@@ -164,6 +173,8 @@ $$;
 -- A copied player joins with the new code, their name and a PIN of their choice: this sets
 -- that PIN, once. Called signed out (from the Join page), so it's open to anon — the same
 -- trust as joining, where anyone can take an unused name. The organizer can reset a PIN.
+-- Not for organizers: that would hand organizer access to whoever claims first, so the
+-- organizer gives them a PIN with Reset PIN instead.
 create or replace function claim_player(p_code text, p_name text, p_password text)
 returns boolean language plpgsql security definer as $$
 declare
@@ -179,7 +190,7 @@ begin
   v_email := lower(regexp_replace(trim(p_name), '[^a-zA-Z0-9]+', '', 'g')) || '.'
           || lower(regexp_replace(trim(v_join_code), '[^a-zA-Z0-9]+', '', 'g')) || '@players.rydercup.app';
   select p.id into v_id from profiles p join auth.users u on u.id = p.id
-  where u.email = v_email and p.event_id = v_event and not p.claimed;
+  where u.email = v_email and p.event_id = v_event and not p.claimed and p.role <> 'organizer';
   if v_id is null then return false; end if;
   update auth.users set encrypted_password = crypt(p_password, gen_salt('bf')), updated_at = now()
   where id = v_id;
@@ -223,6 +234,28 @@ begin
 end;
 $$;
 
+-- After someone stops organizing an event: point them at another event they still run, or
+-- (none left) drop their organizer row so they're back to just their player login. Internal.
+create or replace function fix_active_event(p_user uuid)
+returns void language plpgsql security definer as $$
+declare v_next uuid;
+begin
+  if exists (select 1 from organizers o
+             join event_organizers e on e.event_id = o.active_event_id and e.user_id = o.user_id
+             where o.user_id = p_user) then
+    return;
+  end if;
+  select e.event_id into v_next from event_organizers e join events ev on ev.id = e.event_id
+  where e.user_id = p_user order by ev.created_at desc limit 1;
+  if v_next is null then
+    delete from organizers where user_id = p_user;
+  else
+    update organizers set active_event_id = v_next where user_id = p_user;
+  end if;
+end;
+$$;
+revoke execute on function fix_active_event(uuid) from public, anon, authenticated;
+
 -- Removing a copied player who never joined deletes their placeholder account too (nobody
 -- knows its password, so it could never be used, and it would block re-adding the name).
 create or replace function remove_player(p_player_id uuid)
@@ -241,12 +274,15 @@ begin
   if not v_claimed then
     delete from auth.users where id = p_player_id;   -- cascades to the profile
   else
-    delete from profiles where id = p_player_id;
+    delete from profiles where id = p_player_id;   -- cascades to their event_organizers rows
+    perform fix_active_event(p_player_id);
   end if;
 end;
 $$;
 
--- The last organizer can't be demoted — an organizer account running the event counts.
+-- Making a player organizer also lists the event on their Events page (event_organizers), so
+-- they can switch to it and copy it like the organizer who created it. The last organizer
+-- can't be demoted — an organizer login running the event counts.
 create or replace function set_organizer_role(p_player_id uuid, p_make_organizer boolean)
 returns void language plpgsql security definer as $$
 declare
@@ -271,5 +307,14 @@ begin
   update profiles
     set role = case when p_make_organizer then 'organizer' else 'player' end
   where id = p_player_id and event_id = v_event;
+
+  if p_make_organizer then
+    insert into event_organizers (event_id, user_id) values (v_event, p_player_id) on conflict do nothing;
+    insert into organizers (user_id, active_event_id) values (p_player_id, v_event)
+      on conflict (user_id) do nothing;
+  else
+    delete from event_organizers where event_id = v_event and user_id = p_player_id;
+    perform fix_active_event(p_player_id);
+  end if;
 end;
 $$;

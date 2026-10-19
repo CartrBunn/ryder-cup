@@ -126,7 +126,7 @@ function Protected({ children, need }) {
   return children;
 }
 
-// Events belong to organizer accounts (email logins), not players promoted to organizer.
+// The Events page is for anyone who organizes an event: organizer logins and players made organizer.
 function OrganizerOnly({ children }) {
   const { realProfile } = useAuth();
   return realProfile?.isOrganizerAccount ? children : <Navigate to="/" replace />;

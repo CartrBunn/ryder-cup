@@ -8,7 +8,8 @@ export const useAuth = () => useContext(AuthCtx);
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  // Organizer accounts' row: { user_id, active_event_id }; null for players.
+  // { user_id, active_event_id } for anyone who organizes an event (organizer logins and
+  // players made organizer); null for everyone else.
   const [organizer, setOrganizer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRecovery, setIsRecovery] = useState(false);

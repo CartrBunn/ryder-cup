@@ -16,7 +16,8 @@ by each player's handicap.
    card (par + stroke index), team names/colours, captains, and creates the three rounds.
    One organizer login runs any number of events: the **Events** page lists them, switches
    between them, starts new ones, and **copies an event for next year** (course, settings
-   and players; not teams, rounds or matchups). Copied players join with the new code, their
+   players and organizers; not teams, rounds or matchups). Anyone marked organizer in Setup
+   gets the same Events page for that event. Copied players join with the new code, their
    name, and a new PIN. The organizer isn't a player; to play too, join with the code like
    everyone else.
 2. **Players** join with the code, their name, and handicap, and set a password.
