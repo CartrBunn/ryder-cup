@@ -165,7 +165,14 @@ export default function ScoreEntry() {
         one(supabase.from('hole_scores').select('*').eq('match_id', id))
       ]);
       setGross(withPending(scores));
-      setBundle({ match, round, course, event, profiles, teams });
+      // Players on a match teeing off from the same hole in this round may score it too.
+      let sameHole = false;
+      if (match.start_hole) {
+        const mates = await one(supabase.from('matches').select('side_a_players,side_b_players')
+          .eq('round_id', match.round_id).eq('start_hole', match.start_hole));
+        sameHole = mates.some(m => m.side_a_players.includes(profile.id) || m.side_b_players.includes(profile.id));
+      }
+      setBundle({ match, round, course, event, profiles, teams, sameHole });
     } catch (e) {
       setLoadErr(e.message || String(e));
     }
@@ -280,7 +287,8 @@ export default function ScoreEntry() {
   const total = side => Object.values(gross[side]).reduce((t, v) => t + Number(v), 0);
   const canEdit = profile.role !== 'spectator' && (['organizer', 'captain'].includes(profile.role)
     || match.side_a_players.includes(profile.id)
-    || match.side_b_players.includes(profile.id));
+    || match.side_b_players.includes(profile.id)
+    || bundle.sameHole);
 
   return (
     <div className="stack">

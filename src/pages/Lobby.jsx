@@ -77,7 +77,7 @@ export default function Lobby() {
         <section key={r.id} className="round">
           <div className="rhead"><span className="rname">{r.name}</span><span className="rsub">{r.format.replace('_',' ')}{event.scoring_mode === 'stroke' && ' · stroke play'}</span></div>
           {matches.filter(m => m.round_id === r.id)
-            .sort((x, y) => (x.start_hole ?? 1) - (y.start_hole ?? 1) || x.seq - y.seq)
+            .sort((x, y) => x.seq - y.seq)
             .map(m => {
             const c = ctxById[m.id];
             const { leftPlayers, rightPlayers, leftWon, rightWon } = matchDisplay(m);
