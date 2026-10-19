@@ -44,6 +44,18 @@ export async function enablePush() {
   return 'on';
 }
 
+// Re-point this device's subscription at the signed-in user's current event (an organizer
+// switching events), if notifications are on.
+export async function resyncPush() {
+  const reg = await navigator.serviceWorker?.getRegistration(import.meta.env.BASE_URL);
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  const { keys } = sub.toJSON();
+  const { error } = await supabase.rpc('save_push_subscription',
+    { p_endpoint: sub.endpoint, p_p256dh: keys.p256dh, p_auth: keys.auth });
+  if (error) throw error;
+}
+
 export async function disablePush() {
   const reg = await navigator.serviceWorker?.getRegistration(import.meta.env.BASE_URL);
   const sub = await reg?.pushManager.getSubscription();

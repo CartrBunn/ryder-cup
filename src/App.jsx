@@ -14,6 +14,7 @@ import ResetPassword from './pages/ResetPassword';
 import Prizes from './pages/Prizes';
 import Chat from './pages/Chat';
 import Caddie from './pages/Caddie';
+import Events from './pages/Events';
 import { ChatProvider, useChat } from './context/ChatContext';
 import AutoPoster from './components/AutoPoster';
 import Alerts from './components/Alerts';
@@ -32,7 +33,8 @@ function Nav() {
       .then(({ data }) => setTeams(data || []));
   }, [canPreview, realProfile?.event_id]);
   if (!session) return null;
-  const isAdmin = profile && ['organizer', 'captain'].includes(profile.role);
+  const inEvent = !!profile?.event_id;
+  const isAdmin = inEvent && ['organizer', 'captain'].includes(profile.role);
   async function logout() {
     await disablePush().catch(() => {});   // this device shouldn't keep getting the last user's pushes
     await supabase.auth.signOut();
@@ -78,15 +80,16 @@ function Nav() {
         {!open && unread > 0 && <span className="navdot" />}
       </button>
       <div className={open ? 'navlinks open' : 'navlinks'}>
-        {profile && <Link to="/" onClick={close}>Leaderboard</Link>}
-        {profile && <Link to="/prizes" onClick={close}>Individual Leaderboard</Link>}
-        {profile && <Link to="/chat" className="chatlink" onClick={close}>Chat{unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}</Link>}
-        {profile && <Link to="/draft" onClick={close}>Draft</Link>}
+        {inEvent && <Link to="/" onClick={close}>Leaderboard</Link>}
+        {inEvent && <Link to="/prizes" onClick={close}>Individual Leaderboard</Link>}
+        {inEvent && <Link to="/chat" className="chatlink" onClick={close}>Chat{unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}</Link>}
+        {inEvent && <Link to="/draft" onClick={close}>Draft</Link>}
         {isAdmin && <Link to="/matchups" onClick={close}>Matchups</Link>}
-        {profile?.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
+        {inEvent && profile.role === 'organizer' && <Link to="/admin" onClick={close}>Setup</Link>}
+        {realProfile?.isOrganizerAccount && !viewAs && <Link to="/events" onClick={close}>Events</Link>}
       </div>
       {profile && <span className="whoami">{profile.display_name} · {profile.role}</span>}
-      {canPreview && (
+      {canPreview && inEvent && (
         <select className="viewas" value={viewValue} onChange={e => changeView(e.target.value)} aria-label="View as">
           <option value="">Organizer view</option>
           <option value="player">Player view</option>
@@ -117,8 +120,16 @@ function Protected({ children, need }) {
   if (!session) return <Navigate to="/login" replace />;
   if (!profile) return <Navigate to="/signup" replace />;
   if (spectator && !SPECTATOR_PATHS.includes(pathname) && !pathname.startsWith('/match/')) return <Navigate to="/" replace />;
+  // An organizer account with no event yet starts on its events list.
+  if (profile.isOrganizerAccount && !profile.event_id && pathname !== '/events') return <Navigate to="/events" replace />;
   if (need && !need.includes(profile.role)) return <Navigate to="/" replace />;
   return children;
+}
+
+// Events belong to organizer accounts (email logins), not players promoted to organizer.
+function OrganizerOnly({ children }) {
+  const { realProfile } = useAuth();
+  return realProfile?.isOrganizerAccount ? children : <Navigate to="/" replace />;
 }
 
 function RecoveryRedirect() {
@@ -134,7 +145,7 @@ export default function App() {
     <ChatProvider>
       <RecoveryRedirect />
       <Nav />
-      {profile && <><AutoPoster /><Alerts /></>}
+      {profile?.event_id && <><AutoPoster /><Alerts /></>}
       <main className="page">
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -149,6 +160,7 @@ export default function App() {
           <Route path="/matchups" element={<Protected need={['organizer','captain']}><Matchups /></Protected>} />
           {/* Hidden: not linked from the nav — reachable only by this URL. */}
           <Route path="/caddie-ed19b8ad" element={<Protected><Caddie /></Protected>} />
+          <Route path="/events" element={<Protected need={['organizer']}><OrganizerOnly><Events /></OrganizerOnly></Protected>} />
           <Route path="/admin" element={<Protected need={['organizer']}><AdminSetup /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

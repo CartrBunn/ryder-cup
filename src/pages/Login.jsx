@@ -20,7 +20,7 @@ export default function Login() {
       if (mode === 'player') {
         const { email, password } = playerCreds(player);
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw new Error('Check your name, join code, and PIN.');
+        if (error) throw new Error('Check your name, join code, and PIN. Played last year? Use "Join the event" with this year\'s code to pick a new PIN.');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: org.email, password: org.password });
         if (error) throw error;

@@ -25,7 +25,14 @@ export default function Signup() {
       // case) — carry on and finish joining. Otherwise the name is taken in this event.
       const { error } = await supabase.auth.signUp({ email, password });
       if (error && !/already registered/i.test(error.message)) throw error;
-      const s = await supabase.auth.signInWithPassword({ email, password });
+      let s = await supabase.auth.signInWithPassword({ email, password });
+      let claimed = false;
+      // Carried over from an earlier event? Their account is waiting without a PIN: this one sets it.
+      if (s.error && error) {
+        ({ data: claimed } = await supabase.rpc('claim_player',
+          { p_code: form.code.trim(), p_name: form.name.trim(), p_password: password }));
+        if (claimed) s = await supabase.auth.signInWithPassword({ email, password });
+      }
       if (s.error) {
         if (error) throw new Error('That name is already taken in this event — add a last initial, or use Log in if it\'s you.');
         throw s.error;
@@ -41,6 +48,9 @@ export default function Signup() {
           p_handicap: Number(form.handicap) || 0
         });
         if (rpcErr) throw rpcErr;
+      } else if (claimed && form.handicap.trim() !== '') {
+        // A copied player's handicap is last event's; take the one they just typed.
+        await supabase.from('profiles').update({ handicap: Number(form.handicap) || 0 }).eq('id', s.data.user.id);
       }
       await refreshProfile();
       nav('/');

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { supabase, createTempClient } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { playerCreds } from '../lib/playerAuth';
+import { copyPlayers } from '../lib/copyPlayers';
 import { bestFix, formatLatLng, metersToYards, parseLatLng, yardsBetween } from '../lib/yardage';
 
 const makeHoles = n => Array.from({ length: n }, (_, i) => ({ number: i + 1, par: 4, strokeIndex: i + 1 }));
@@ -20,7 +21,7 @@ const FORMATS = [
 const sideSize = fmt => FORMATS.find(f => f.value === fmt)?.size ?? 2;
 
 export default function AdminSetup() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, realProfile } = useAuth();
   const [event, setEvent] = useState(null);
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
@@ -36,6 +37,9 @@ export default function AdminSetup() {
   const [handicaps, setHandicaps] = useState({});
   const [names, setNames] = useState({});
   const [locating, setLocating] = useState(null);   // { i, key, acc } while "Here" waits for GPS
+  const [otherEvents, setOtherEvents] = useState([]);   // this organizer's other events, to copy players from
+  const [copySource, setCopySource] = useState('');
+  const [copying, setCopying] = useState('');
 
   async function load() {
     if (!profile?.event_id) return;
@@ -51,10 +55,18 @@ export default function AdminSetup() {
     setCourse(c || { event_id: evt, name: 'Course', holes: DEFAULT_HOLES });
   }
   useEffect(() => { load(); }, [profile?.event_id]);
+  useEffect(() => {
+    if (!realProfile?.isOrganizerAccount || !profile?.event_id) return;
+    supabase.from('event_organizers').select('events(id, name, created_at)').eq('user_id', realProfile.id)
+      .then(({ data }) => setOtherEvents((data || []).map(r => r.events)
+        .filter(e => e && e.id !== profile.event_id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))));
+  }, [realProfile?.id, profile?.event_id]);
 
-  if (!profile?.event_id) return <Navigate to="/start" replace />;
+  if (!profile?.event_id) return <Navigate to={realProfile?.isOrganizerAccount ? '/events' : '/start'} replace />;
   if (!event) return <div className="center">Loading setup…</div>;
 
+  const codeLocked = players.some(p => p.id !== profile.id);
   const flash = (m, ms = 1500) => { setMsg(m); setTimeout(() => setMsg(cur => (cur === m ? '' : cur)), ms); };
 
   async function saveEvent() {
@@ -180,6 +192,24 @@ export default function AdminSetup() {
     flash(`PIN reset for ${p.display_name} — new PIN ${resetPin}`);
     setResetId(null); setResetPin('');
   }
+  async function copyPlayersIn() {
+    const src = otherEvents.find(e => e.id === copySource);
+    if (!src) return flash('Pick an event to copy players from');
+    setCopying('Copying…');
+    try {
+      const r = await copyPlayers({ fromEventId: src.id, toEvent: event,
+        onProgress: (i, n) => setCopying(`Copying ${i} of ${n}…`) });
+      const parts = [`Copied ${r.added} from ${src.name}`];
+      if (r.skipped) parts.push(`${r.skipped} already here`);
+      if (r.failed.length) parts.push(`didn't copy: ${r.failed.map(f => `${f.name} (${f.error})`).join(', ')}`);
+      flash(parts.join(' · '), r.failed.length ? 10000 : 3000);
+      load();
+    } catch (e) {
+      flash(e.message || String(e));
+    } finally {
+      setCopying('');
+    }
+  }
   async function addPlayer() {
     const name = newPlayer.name.trim();
     if (!name) return flash('Enter a name');
@@ -283,9 +313,9 @@ export default function AdminSetup() {
         <h3>Basics</h3>
         <label>Event name<input value={event.name} onChange={e => setEvent({ ...event, name: e.target.value })} /></label>
         {/* Player logins are derived from the join code, so it's frozen once anyone has joined. */}
-        <label>Join code<input value={event.join_code} readOnly={players.length > 1}
+        <label>Join code<input value={event.join_code} readOnly={codeLocked}
           onChange={e => setEvent({ ...event, join_code: e.target.value })} /></label>
-        {players.length > 1 && <p className="muted small">Locked — players sign in with this code, so changing it would lock them out.</p>}
+        {codeLocked && <p className="muted small">Locked — players sign in with this code, so changing it would lock them out.</p>}
         <div className="cols4">
           <label>Singles %<input type="number" value={event.singles_pct} onChange={e => setEvent({ ...event, singles_pct: +e.target.value })} /></label>
           <label>Alt-shot %<input type="number" value={event.altshot_pct} onChange={e => setEvent({ ...event, altshot_pct: +e.target.value })} /></label>
@@ -373,6 +403,7 @@ export default function AdminSetup() {
                       onChange={e => setHandicaps(h => ({ ...h, [p.id]: e.target.value }))}
                       onBlur={() => saveHandicap(p.id)}
                     />) <span className="tag">{p.role}</span>
+                    {p.claimed === false && <span className="tag" title="Copied from an earlier event. They join with this event's code, their name, and a new PIN.">hasn't joined</span>}
                   </span>
                   {swapId === p.id ? (
                     <span className="row">
@@ -419,6 +450,16 @@ export default function AdminSetup() {
         </div>
         <p className="muted small">To replace someone who can't make it: add the substitute above, then tap "Swap out" on the player leaving. The substitute takes their team and matchups.</p>
         <p className="muted small">Share the PIN with the player — they log in with the join code, their name, and this PIN.</p>
+        {otherEvents.length > 0 && (
+          <div className="addplayer">
+            <select value={copySource} onChange={e => setCopySource(e.target.value)}>
+              <option value="">— copy players from —</option>
+              {otherEvents.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+            <button disabled={!!copying} onClick={copyPlayersIn}>{copying || 'Copy players'}</button>
+          </div>
+        )}
+        {otherEvents.length > 0 && <p className="muted small">Copies names and handicaps (anyone already here is skipped). Copied players show "hasn't joined" until they join with this event's code, their name, and a new PIN — or you Reset PIN for them.</p>}
       </section>
 
       <section className="card">

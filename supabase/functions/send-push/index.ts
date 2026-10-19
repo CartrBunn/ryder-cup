@@ -72,8 +72,14 @@ Deno.serve(async req => {
   if (error) return json({ error: error.message }, 500);
   if (!msg || msg.retracted) return json({ sent: 0, skipped: true });
 
-  const { data: profiles } = await db.from('profiles').select('id, display_name').eq('event_id', msg.event_id);
-  const people: Person[] = (profiles || []).map(p => ({ id: p.id, name: p.display_name }));
+  const [{ data: profiles }, { data: organizers }] = await Promise.all([
+    db.from('profiles').select('id, display_name').eq('event_id', msg.event_id),
+    // Organizer accounts running the event, who usually aren't players in it.
+    db.from('event_organizers').select('profiles(id, display_name)').eq('event_id', msg.event_id)
+  ]);
+  const people: Person[] = [...(profiles || []), ...(organizers || []).map(o => o.profiles).filter(Boolean)]
+    .filter((p, i, all) => all.findIndex(q => q.id === p.id) === i)
+    .map(p => ({ id: p.id, name: p.display_name }));
   const name = (pid: string) => people.find(p => p.id === pid)?.name || '—';
   const author = msg.author_id ? name(msg.author_id) : '';
 

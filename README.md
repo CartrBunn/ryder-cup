@@ -14,6 +14,11 @@ by each player's handicap.
 
 1. **Organizer** starts an event (from the Setup tab), sets the join code, the course
    card (par + stroke index), team names/colours, captains, and creates the three rounds.
+   One organizer login runs any number of events: the **Events** page lists them, switches
+   between them, starts new ones, and **copies an event for next year** (course, settings
+   and players; not teams, rounds or matchups). Copied players join with the new code, their
+   name, and a new PIN. The organizer isn't a player; to play too, join with the code like
+   everyone else.
 2. **Players** join with the code, their name, and handicap, and set a password.
 3. **Captains** draft teams from the signup pool (alternating snake order) and set the
    matchups for each round.

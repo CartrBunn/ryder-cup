@@ -31,12 +31,18 @@ export function ChatProvider({ children }) {
   const setMuted = v => { setMutedState(v); ls.set('alertsMuted', v ? '1' : '0'); };
 
   async function loadPeople() {
-    const [{ data: ps }, { data: ts }] = await Promise.all([
+    const [{ data: ps }, { data: ts }, { data: os }] = await Promise.all([
       supabase.from('profiles').select('id, display_name, team_id').eq('event_id', evt).order('display_name'),
-      supabase.from('teams').select('id, color').eq('event_id', evt)
+      supabase.from('teams').select('id, color').eq('event_id', evt),
+      // Organizer accounts running the event, who usually aren't players in it.
+      supabase.from('event_organizers').select('profiles(id, display_name)').eq('event_id', evt)
     ]);
     const color = Object.fromEntries((ts || []).map(t => [t.id, t.color]));
-    setPeople((ps || []).map(p => ({ id: p.id, name: p.display_name, color: color[p.team_id] })));
+    const players = (ps || []).map(p => ({ id: p.id, name: p.display_name, color: color[p.team_id] }));
+    const organizers = (os || []).map(o => o.profiles)
+      .filter(o => o && !players.some(p => p.id === o.id))
+      .map(o => ({ id: o.id, name: o.display_name }));
+    setPeople([...players, ...organizers]);
   }
 
   async function loadReactions() {
